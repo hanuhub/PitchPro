@@ -13,6 +13,14 @@ import {
   PieChart, Pie, Cell, Legend, BarChart, Bar,
 } from "recharts";
 
+// Greet by last token of the full name (e.g. "Veer Hanumaan" → "Hanumaan").
+// Falls back to the full string for single-word names.
+function lastNamePart(name) {
+  if (!name) return "";
+  const parts = String(name).trim().split(/\s+/);
+  return parts[parts.length - 1];
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
@@ -66,7 +74,7 @@ export default function Dashboard() {
         <div>
           <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-2">— Parent Dashboard</div>
           <h1 className="font-display text-5xl md:text-6xl font-bold uppercase tracking-tight">
-            Hello, {user?.name?.split(" ")[0]}.
+            Hello, {lastNamePart(user?.name)}.
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}

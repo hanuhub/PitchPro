@@ -1174,7 +1174,7 @@ async def seed_test_user():
             "id": str(uuid.uuid4()),
             "email": email,
             "password_hash": hash_password("User@12345"),
-            "name": "Rohan Sharma",
+            "name": "Veer Hanumaan",
             "phone": "+15551234567",
             "role": "user",
             "kids": [{"name": "Veer Hanumaan", "age": 11}, {"name": "Diya Sharma", "age": 9}],

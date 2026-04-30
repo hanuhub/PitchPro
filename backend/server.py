@@ -846,7 +846,9 @@ async def mark_fee_paid(fee_id: str, request: Request):
 @api_router.delete("/fees/{fee_id}")
 async def delete_fee(fee_id: str, request: Request):
     await require_role(request, ["admin"])
-    await db.fees.delete_one({"id": fee_id})
+    res = await db.fees.delete_one({"id": fee_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Fee not found")
     return {"ok": True}
 
 

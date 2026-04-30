@@ -1714,7 +1714,11 @@ async def seed_demo_activity():
 async def seed_pitchpro_demo_accounts():
     """Seed the `@pitchpro.com` demo accounts used by the 'Login' dropdown on the landing page.
     Idempotent — only inserts when an email is missing, then links them to the flagship
-    Pyare Mohan academy so demos have rich pre-seeded data out of the box."""
+    Pyare Mohan academy so demos have rich pre-seeded data out of the box.
+
+    Also re-parents the demo parent's bookings/sessions/fees/progress from the legacy
+    `user@cricketacademy.com` record so the Player dashboard has real data on fresh installs.
+    """
     pm = await db.academies.find_one({"slug": "pyaremohan"}, {"_id": 0})
     if not pm:
         return
@@ -1746,6 +1750,60 @@ async def seed_pitchpro_demo_accounts():
                 "created_at": now,
             })
             logger.info(f"Seeded pitchpro demo {a['email']}")
+
+    # Re-parent demo activity from legacy parent → new parent so the Player dashboard
+    # has bookings/sessions/fees/progress on fresh deployments.
+    legacy = await db.users.find_one({"email": "user@cricketacademy.com"}, {"_id": 0})
+    new_parent = await db.users.find_one({"email": "veer_hanumaan@pitchpro.com"}, {"_id": 0})
+    if legacy and new_parent and legacy["id"] != new_parent["id"]:
+        for col in ["bookings", "sessions", "fees", "progress", "notifications"]:
+            await db[col].update_many(
+                {"user_id": legacy["id"]},
+                {"$set": {
+                    "user_id": new_parent["id"],
+                    "user_email": new_parent["email"],
+                    "user_name": new_parent["name"],
+                }},
+            )
+        logger.info("Re-parented demo activity from user@cricketacademy.com to veer_hanumaan@pitchpro.com")
+
+    # Seed 3 extra coaches with professional photos for the Pyare Mohan showcase.
+    extra_coaches = [
+        {"name": "Rahul Deshpande", "title": "Head Batting Coach",
+         "bio": "Former Ranji Trophy top-order batter with 8000+ first-class runs. Coaches technique, mental game, match play.",
+         "specialties": ["Batting technique", "Mental conditioning", "Match play"],
+         "photo_url": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80",
+         "awards": ["Ranji Top Scorer 2014", "Best Coach U-19 2022"], "hourly_rate": 75},
+        {"name": "Sameer Kohli", "title": "Fast Bowling Specialist",
+         "bio": "Ex India A pacer. Swing, seam, yorker drills and IPL-style death bowling programs.",
+         "specialties": ["Fast bowling", "Swing bowling", "Death overs"],
+         "photo_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
+         "awards": ["India A cap", "Level 3 NCA Certified"], "hourly_rate": 80},
+        {"name": "Anaya Krishnan", "title": "Women & Junior Academy Lead",
+         "bio": "All-rounder turned coach. Runs the academy's junior and women cricket programs. Specialist in foundational skills.",
+         "specialties": ["Junior coaching", "All-rounder development", "Fielding"],
+         "photo_url": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80",
+         "awards": ["National U-19 Selector 2023", "Level 2 NCA Certified"], "hourly_rate": 70},
+    ]
+    for c in extra_coaches:
+        if not await db.coaches.find_one({"name": c["name"], "academy_id": aid}):
+            await db.coaches.insert_one({
+                **c, "id": str(uuid.uuid4()), "academy_id": aid,
+                "available_days": [1, 2, 3, 4, 5, 6],
+                "available_start_hour": 8, "available_end_hour": 20,
+                "created_at": now,
+            })
+
+    # Apply demo-boost on the showcase academy so its KPI strip reads like a busy academy
+    # (225 players, $34,250 revenue, 234 bookings, 22 games) without bloating the DB.
+    await db.academies.update_one({"id": aid}, {"$set": {
+        "demo_boost": {
+            "users_extra": 219,
+            "bookings_extra": 221,
+            "games_extra": 20,
+            "revenue_30d_target": 34250.0,
+        }
+    }})
 
 
 async def on_startup():

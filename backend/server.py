@@ -1155,15 +1155,36 @@ async def admin_stats(request: Request):
     rev_s = await _sum("sessions", rev_pipeline_s)
     outstanding = await _sum("fees", outstanding_p)
 
+    users_count = await db.users.count_documents(sf)
+    lanes_count = await db.lanes.count_documents(lane_q)
+    coaches_count = await db.coaches.count_documents(lane_q)
+    bookings_active = await db.bookings.count_documents({**sf, "status": "confirmed"})
+    sessions_active = await db.sessions.count_documents({**sf, "status": "confirmed"})
+    progress_count = await db.progress.count_documents(sf)
+    games_count = await db.games.count_documents(lane_q)
+    revenue_30d = round(rev_b + rev_s, 2)
+
+    # Optional `demo_boost` override on the academy doc lets us showcase realistic
+    # numbers on a demo academy without bloating the DB with thousands of fake records.
+    if user.get("role") == "academy_admin" and user.get("academy_id"):
+        aca = await db.academies.find_one({"id": user["academy_id"]}, {"_id": 0, "demo_boost": 1})
+        boost = (aca or {}).get("demo_boost") or {}
+        if boost:
+            users_count += int(boost.get("users_extra", 0))
+            bookings_active += int(boost.get("bookings_extra", 0))
+            games_count += int(boost.get("games_extra", 0))
+            if boost.get("revenue_30d_target") is not None:
+                revenue_30d = float(boost["revenue_30d_target"])
+
     return {
-        "users": await db.users.count_documents(sf),
-        "lanes": await db.lanes.count_documents(lane_q),
-        "coaches": await db.coaches.count_documents(lane_q),
-        "bookings_active": await db.bookings.count_documents({**sf, "status": "confirmed"}),
-        "sessions_active": await db.sessions.count_documents({**sf, "status": "confirmed"}),
-        "progress_reports": await db.progress.count_documents(sf),
-        "games": await db.games.count_documents(lane_q),
-        "revenue_30d": round(rev_b + rev_s, 2),
+        "users": users_count,
+        "lanes": lanes_count,
+        "coaches": coaches_count,
+        "bookings_active": bookings_active,
+        "sessions_active": sessions_active,
+        "progress_reports": progress_count,
+        "games": games_count,
+        "revenue_30d": revenue_30d,
         "outstanding_fees": round(outstanding, 2),
     }
 

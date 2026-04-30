@@ -35,19 +35,20 @@ export function Navbar() {
     </>
   );
 
-  // Authenticated nav: shows the academy-app links the user actually has access to.
+  // Authenticated nav: role-aware. Dashboard goes to the console for the user's role.
+  // No public-site links like "Academy" (About) here — that's only for the landing page.
+  const dashboardHref =
+    isAuth && (user.role === "platform_admin" || user.role === "academy_admin")
+      ? "/admin"
+      : isAuth && user.role === "coach"
+      ? "/staff"
+      : "/dashboard";
+
   const authedLinks = (
     <>
-      <NavLink to="/dashboard" className={navLinkClass} data-testid="nav-dashboard">Dashboard</NavLink>
+      <NavLink to={dashboardHref} end className={navLinkClass} data-testid="nav-dashboard">Dashboard</NavLink>
       <NavLink to="/coaches" className={navLinkClass} data-testid="nav-coaches">Coaches</NavLink>
       <NavLink to="/games" className={navLinkClass} data-testid="nav-games">Games</NavLink>
-      <NavLink to="/about" className={navLinkClass} data-testid="nav-about">Academy</NavLink>
-      {isAuth && user.role === "platform_admin" && (
-        <NavLink to="/admin" className={navLinkClass} data-testid="nav-admin">Admin</NavLink>
-      )}
-      {isAuth && user.role === "academy_admin" && (
-        <NavLink to="/admin" className={navLinkClass} data-testid="nav-academy-admin">My Academy</NavLink>
-      )}
       {isAuth && (user.role === "platform_admin" || user.role === "academy_admin" || user.role === "coach") && (
         <NavLink to="/staff" className={navLinkClass} data-testid="nav-staff">Operations</NavLink>
       )}
@@ -103,7 +104,7 @@ export function Navbar() {
                   </DropdownMenuLabel>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/dashboard")} data-testid="menu-dashboard" className="rounded-lg">
+                <DropdownMenuItem onClick={() => navigate(dashboardHref)} data-testid="menu-dashboard" className="rounded-lg">
                   Dashboard
                 </DropdownMenuItem>
                 {(user.role === "platform_admin" || user.role === "academy_admin") && (

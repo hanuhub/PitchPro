@@ -17,6 +17,10 @@ import BookLane from "@/pages/BookLane";
 import Coaching from "@/pages/Coaching";
 import Admin from "@/pages/Admin";
 import Staff from "@/pages/Staff";
+import ThemePicker from "@/pages/themes/Picker";
+import ThemeSage from "@/pages/themes/Sage";
+import ThemeSky from "@/pages/themes/Sky";
+import ThemePitch from "@/pages/themes/Pitch";
 
 function Layout({ children }) {
   return (
@@ -56,6 +60,10 @@ function App() {
             <Route path="/staff" element={
               <ProtectedRoute roles={["admin", "coach"]}><Layout><Staff /></Layout></ProtectedRoute>
             } />
+            <Route path="/themes" element={<Layout><ThemePicker /></Layout>} />
+            <Route path="/themes/sage" element={<ThemeSage />} />
+            <Route path="/themes/sky" element={<ThemeSky />} />
+            <Route path="/themes/pitch" element={<ThemePitch />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

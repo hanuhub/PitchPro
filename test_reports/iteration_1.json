@@ -1,0 +1,50 @@
+{
+  "summary": "Comprehensive backend API testing for Cricket Academy app. All 33 pytest cases passed (100% success). Covered auth (register/login/me/logout/refresh/brute-force), seeded public data (lanes=5, coaches=3, games=2, awards=4), bookings (CRUD, 24h rule, conflict, availability), 1-1 sessions (day/hours validation, conflict), progress reports (admin creates, user sees + notified), games + mocked email/whatsapp/in-app notify, announcements, notifications (list + mark read), and role-based access control (user/coach can't hit admin endpoints).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "CORS config (server.py:1006-1012)", "issue": "allow_origin_regex='.*' combined with allow_credentials=True; browsers will still reject. The `origins` list is computed but never passed to CORSMiddleware. Should pass allow_origins=origins instead of allow_origin_regex='.*'."},
+      {"endpoint": "cookies samesite=none + secure=true", "issue": "Fine for HTTPS prod, but will break cookie-based auth in any plain http dev environment."},
+      {"endpoint": "GET /api/sessions (admin/coach)", "issue": "For coach role, query filters by user['coach_id'] which is never set on the coach user doc — coach will always see zero sessions. Need to link coach user to coach record."},
+      {"endpoint": "PUT /api/bookings/{id}", "issue": "Does not re-validate new_hour/new_dur are inside 6-22 business hours; user could move a booking to hour 3 or end at 23 via update."},
+      {"endpoint": "POST /api/bookings", "issue": "parse_booking_dt treats booking as UTC, while 'past' check also uses UTC. Timezone of academy is unclear — bookings labelled '10:00' are actually 10:00 UTC, which could confuse users in different tz."},
+      {"endpoint": "Deprecation", "issue": "FastAPI @app.on_event('startup'/'shutdown') is deprecated; should migrate to lifespan handler."},
+      {"endpoint": "POST /api/auth/register", "issue": "No password complexity validation (only min_length=6). Also returns only public_user with no explicit 201 status (uses default 200)."},
+      {"endpoint": "Brute-force lockout", "issue": "Uses IP:email as key — trivially bypassed by rotating IPs. Consider per-email lockout too. Current behavior passes the basic test case."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix CORS: replace allow_origin_regex='.*' with allow_origins=origins (include FRONTEND_URL) so credentialed requests actually work in browsers.",
+    "Link coach-user to their coach_id (either on seed or by email) so GET /api/sessions works for coach role.",
+    "Re-validate business-hours (6-22) in PUT /api/bookings/{id}.",
+    "Migrate from deprecated @app.on_event to lifespan."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~1000 lines single-file — acceptable for MVP but should be split into routers/models/services modules for scale.",
+    "CORS: allow_origin_regex='.*' + allow_credentials=True is browser-rejected. The computed `origins` list is dead code.",
+    "Coach role bug: GET /api/sessions filters by user['coach_id'] which is never set during coach seeding.",
+    "PUT /api/bookings does not validate start_hour/duration remain within 6-22.",
+    "Deprecated on_event hooks — use lifespan context manager.",
+    "Timezone ambiguity: bookings stored in UTC but hours are treated as local — document or store tz-aware."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/__init__.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "admin@cricketacademy.com / Admin@12345 | user@cricketacademy.com / User@12345 | coach@cricketacademy.com / Coach@12345 — all verified working",
+  "seed_data_creation": "Seed data is auto-created in server.py startup (5 lanes, 3 coaches, 2 games, 4 awards, admin/user/coach users). Tests confirmed all seeded entities exist. Tests also created TEST_-prefixed transient bookings/sessions/progress/games/announcements; most were cancelled/deleted in-test. A few TEST_ progress/announcement/notification rows remain (not cleaned up by tests).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend fully green on 33 pytest cases via /app/backend/tests/backend_test.py. Review comments above flag a likely real bug: CORS credentials config + coach's GET /api/sessions will appear broken in the UI when the main agent tests coach dashboards. Test file is reusable as regression suite — just re-run `pytest /app/backend/tests/backend_test.py -v`.",
+  "rca of the issue": "No bugs caused test failures. Code review RCA for CORS: allow_origin_regex='.*' + allow_credentials=True → Chrome/Firefox strip credentials; the code builds `origins` list but never passes it to CORSMiddleware. Fix: pass allow_origins=origins. RCA for coach-sessions: seed_coach_user creates a user with role=coach but no coach_id field; all_sessions() filters by user.get('coach_id') which is None → empty result. Fix: set coach_id on the coach user to match the seeded coach record (e.g., Vikram Rathore), or change filter to user['id']."
+}

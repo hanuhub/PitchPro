@@ -1,52 +1,60 @@
 import { useEffect } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { Toaster } from "sonner";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import About from "@/pages/About";
+import Coaches from "@/pages/Coaches";
+import Games from "@/pages/Games";
+import Dashboard from "@/pages/Dashboard";
+import BookLane from "@/pages/BookLane";
+import Coaching from "@/pages/Coaching";
+import Admin from "@/pages/Admin";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function Layout({ children }) {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <>
+      <Navbar />
+      <main>{children}</main>
+      <Footer />
+    </>
   );
-};
+}
 
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Toaster position="top-right" theme="dark" richColors closeButton />
+          <Routes>
+            <Route path="/" element={<Layout><Landing /></Layout>} />
+            <Route path="/login" element={<Layout><Login /></Layout>} />
+            <Route path="/register" element={<Layout><Register /></Layout>} />
+            <Route path="/about" element={<Layout><About /></Layout>} />
+            <Route path="/coaches" element={<Layout><Coaches /></Layout>} />
+            <Route path="/games" element={<Layout><Games /></Layout>} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>
+            } />
+            <Route path="/book" element={
+              <ProtectedRoute><Layout><BookLane /></Layout></ProtectedRoute>
+            } />
+            <Route path="/coaching" element={
+              <ProtectedRoute><Layout><Coaching /></Layout></ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute roles={["admin"]}><Layout><Admin /></Layout></ProtectedRoute>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </div>
   );
 }

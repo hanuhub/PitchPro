@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +7,23 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Users, ArrowRight } from "lucide-react";
 
-const DEMO = { email: "user@cricketacademy.com", password: "User@12345", label: "Parent Demo" };
+const DEMO = { email: "veer_hanumaan@pitchpro.com", password: "pitchpro$$pitchpro", label: "Veer Hanumaan (Parent)" };
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Prefill when arriving from the "Login" dropdown (?demo=parent)
+  useEffect(() => {
+    if (params.get("demo") === "parent") {
+      setEmail(DEMO.email);
+      setPassword(DEMO.password);
+    }
+  }, [params]);
 
   const submit = async (e) => {
     e.preventDefault();

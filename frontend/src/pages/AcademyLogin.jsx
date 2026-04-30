@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,23 +12,35 @@ const ROLE_HINT = {
     title: "Academy console",
     sub: "Operations dashboard — lanes, coaches, fees, players, announcements.",
     cta: "Sign in to academy",
-    demo: { email: "hello@pyaremohan.in", password: "AcaAdmin@1", label: "Pyare Mohan Admin" },
+    demo: { email: "pyare_mohan@pitchpro.com", password: "pitchpro$$pitchpro", label: "Pyare Mohan Admin" },
   },
   platform: {
     title: "Platform console",
     sub: "Cross-academy administration — manage every academy on PitchPro.",
     cta: "Sign in to platform",
-    demo: { email: "admin@cricketacademy.com", password: "Admin@12345", label: "Platform Admin" },
+    demo: { email: "admin@pitchpro.com", password: "pitchpro$$pitchpro", label: "Platform Admin" },
   },
 };
 
 export default function AcademyLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [mode, setMode] = useState("academy");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Prefill when arriving from the "Login" dropdown (?demo=academy|platform)
+  useEffect(() => {
+    const d = params.get("demo");
+    if (d === "academy" || d === "platform") {
+      setMode(d);
+      const hint = ROLE_HINT[d];
+      setEmail(hint.demo.email);
+      setPassword(hint.demo.password);
+    }
+  }, [params]);
 
   const submit = async (e) => {
     e.preventDefault();

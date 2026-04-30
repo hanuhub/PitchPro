@@ -46,10 +46,10 @@ export default function Landing() {
 
           {/* Stats strip */}
           <div className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl">
-            <Stat label="Academies" value={academies.length || "03"} />
-            <Stat label="Active players" value="320+" />
-            <Stat label="Pro coaches" value="08" />
-            <Stat label="Trophies" value="14" />
+            <Stat label="Academies" value="42+" />
+            <Stat label="Active players" value="5,800+" />
+            <Stat label="Pro coaches" value="120+" />
+            <Stat label="Trophies won" value="350+" />
           </div>
         </div>
       </section>

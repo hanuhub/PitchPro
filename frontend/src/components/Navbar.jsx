@@ -1,7 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Menu, LogOut, ShieldCheck, Users, Building2 } from "lucide-react";
+import { Menu, LogOut, ShieldCheck, Users, Building2, ChevronDown } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -73,12 +73,39 @@ export function Navbar() {
           <ThemeSwitcher />
           {!isAuth ? (
             <>
-              <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex rounded-full" data-testid="nav-player-login">
-                <Link to="/login"><Users className="mr-1.5 h-3.5 w-3.5" /> Player login</Link>
-              </Button>
-              <Button asChild size="sm" className="rounded-full px-4 hidden sm:inline-flex" data-testid="nav-academy-login">
-                <Link to="/academy/login"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Academy login</Link>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="rounded-full px-5 hidden sm:inline-flex" data-testid="nav-login-dropdown">
+                    Login <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 rounded-2xl p-1" data-testid="login-dropdown-menu">
+                  <DropdownMenuLabel className="text-[10px] tracking-[0.3em] uppercase font-bold text-muted-foreground px-3 pt-2">
+                    Choose your role
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => navigate("/academy/login?demo=academy")} className="rounded-xl p-3 cursor-pointer" data-testid="login-option-academy">
+                    <Building2 className="mr-2.5 h-4 w-4 text-primary shrink-0" />
+                    <div>
+                      <div className="font-display tracking-[0.15em] uppercase text-xs font-bold">Academy login</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">pyare_mohan@pitchpro.com</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/login?demo=parent")} className="rounded-xl p-3 cursor-pointer" data-testid="login-option-player">
+                    <Users className="mr-2.5 h-4 w-4 text-primary shrink-0" />
+                    <div>
+                      <div className="font-display tracking-[0.15em] uppercase text-xs font-bold">Player login</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">veer_hanumaan@pitchpro.com</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/academy/login?demo=platform")} className="rounded-xl p-3 cursor-pointer" data-testid="login-option-platform">
+                    <ShieldCheck className="mr-2.5 h-4 w-4 text-primary shrink-0" />
+                    <div>
+                      <div className="font-display tracking-[0.15em] uppercase text-xs font-bold">Platform login</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">admin@pitchpro.com</div>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button asChild size="sm" variant="outline" className="rounded-full px-4 border-foreground/30 hidden lg:inline-flex" data-testid="register-cta">
                 <Link to="/register">Sign up</Link>
               </Button>
@@ -134,11 +161,15 @@ export function Navbar() {
             {isAuth ? authedLinks : publicLinks}
             {!isAuth && (
               <div className="flex flex-col gap-2 pt-2 border-t border-border">
-                <Button asChild variant="ghost" size="sm" className="rounded-full justify-start" data-testid="mobile-player-login">
-                  <Link to="/login"><Users className="mr-1.5 h-3.5 w-3.5" /> Player login</Link>
+                <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-muted-foreground px-1 pt-1">Login as</div>
+                <Button asChild size="sm" className="rounded-full justify-start" data-testid="mobile-academy-login">
+                  <Link to="/academy/login?demo=academy"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Academy login</Link>
                 </Button>
-                <Button asChild size="sm" className="rounded-full" data-testid="mobile-academy-login">
-                  <Link to="/academy/login"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Academy login</Link>
+                <Button asChild variant="ghost" size="sm" className="rounded-full justify-start border border-border" data-testid="mobile-player-login">
+                  <Link to="/login?demo=parent"><Users className="mr-1.5 h-3.5 w-3.5" /> Player login</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm" className="rounded-full justify-start border border-border" data-testid="mobile-platform-login">
+                  <Link to="/academy/login?demo=platform"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Platform login</Link>
                 </Button>
                 <Button asChild size="sm" variant="outline" className="rounded-full border-foreground/30" data-testid="mobile-register-cta">
                   <Link to="/register">Sign up</Link>

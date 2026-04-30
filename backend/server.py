@@ -1711,6 +1711,43 @@ async def seed_demo_activity():
 
 
 @app.on_event("startup")
+async def seed_pitchpro_demo_accounts():
+    """Seed the `@pitchpro.com` demo accounts used by the 'Login' dropdown on the landing page.
+    Idempotent — only inserts when an email is missing, then links them to the flagship
+    Pyare Mohan academy so demos have rich pre-seeded data out of the box."""
+    pm = await db.academies.find_one({"slug": "pyaremohan"}, {"_id": 0})
+    if not pm:
+        return
+    aid, aname = pm["id"], pm["name"]
+    now = now_utc().isoformat()
+    pitchpro_pass = "pitchpro$$pitchpro"
+    accounts = [
+        {"email": "pyare_mohan@pitchpro.com", "name": "Pyare Mohan Academy Admin",
+         "role": "academy_admin", "academy_id": aid, "academy_name": aname, "kids": []},
+        {"email": "admin@pitchpro.com", "name": "PitchPro Platform Admin",
+         "role": "platform_admin", "academy_id": aid, "academy_name": aname, "kids": []},
+        {"email": "veer_hanumaan@pitchpro.com", "name": "Veer Hanumaan",
+         "role": "user", "academy_id": aid, "academy_name": aname,
+         "kids": [{"name": "Veer Hanumaan", "age": 11}, {"name": "Diya Sharma", "age": 9}]},
+    ]
+    h = hash_password(pitchpro_pass)
+    for a in accounts:
+        if not await db.users.find_one({"email": a["email"]}):
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()),
+                "email": a["email"],
+                "password_hash": h,
+                "name": a["name"],
+                "phone": None,
+                "role": a["role"],
+                "kids": a["kids"],
+                "academy_id": a["academy_id"],
+                "academy_name": a["academy_name"],
+                "created_at": now,
+            })
+            logger.info(f"Seeded pitchpro demo {a['email']}")
+
+
 async def on_startup():
     try:
         await db.users.create_index("email", unique=True)
@@ -1730,6 +1767,7 @@ async def on_startup():
     await seed_academy_admins()
     await seed_games()
     await seed_demo_activity()
+    await seed_pitchpro_demo_accounts()
 
 
 @api_router.get("/")

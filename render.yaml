@@ -41,10 +41,13 @@ services:
     name: pitchpro-frontend
     runtime: static
     rootDir: frontend
-    buildCommand: npm install --legacy-peer-deps && npm run build
+    buildCommand: yarn install --frozen-lockfile && yarn build
     staticPublishPath: ./build
     pullRequestPreviewsEnabled: false
     envVars:
+      # Pin Node 20 LTS — react-scripts 5 doesn't build cleanly on Node 22+.
+      - key: NODE_VERSION
+        value: 20.18.0
       # Set this AFTER the backend service is live, e.g. https://pitchpro-backend.onrender.com
       - key: REACT_APP_BACKEND_URL
         sync: false

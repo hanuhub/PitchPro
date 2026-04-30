@@ -1,7 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Menu, LogOut, ShieldCheck } from "lucide-react";
+import { Menu, LogOut, ShieldCheck, Users, Building2 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -21,15 +21,27 @@ export function Navbar() {
       isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
     }`;
 
-  const links = (
+  // Public (unauthenticated) nav: platform-only links. No Coaches / Games / Academy here —
+  // those belong inside an academy context, after sign-in.
+  const publicLinks = (
     <>
       <NavLink to="/" end className={navLinkClass} data-testid="nav-home">Home</NavLink>
-      <NavLink to="/about" className={navLinkClass} data-testid="nav-about">Academy</NavLink>
+      <a href="/#academies" className="text-[13px] tracking-[0.18em] uppercase font-bold text-muted-foreground hover:text-foreground transition-colors" data-testid="nav-academies">
+        Academies
+      </a>
+      <a href="/#modules" className="text-[13px] tracking-[0.18em] uppercase font-bold text-muted-foreground hover:text-foreground transition-colors" data-testid="nav-platform">
+        Platform
+      </a>
+    </>
+  );
+
+  // Authenticated nav: shows the academy-app links the user actually has access to.
+  const authedLinks = (
+    <>
+      <NavLink to="/dashboard" className={navLinkClass} data-testid="nav-dashboard">Dashboard</NavLink>
       <NavLink to="/coaches" className={navLinkClass} data-testid="nav-coaches">Coaches</NavLink>
       <NavLink to="/games" className={navLinkClass} data-testid="nav-games">Games</NavLink>
-      {isAuth && (
-        <NavLink to="/dashboard" className={navLinkClass} data-testid="nav-dashboard">Dashboard</NavLink>
-      )}
+      <NavLink to="/about" className={navLinkClass} data-testid="nav-about">Academy</NavLink>
       {isAuth && user.role === "platform_admin" && (
         <NavLink to="/admin" className={navLinkClass} data-testid="nav-admin">Admin</NavLink>
       )}
@@ -52,17 +64,22 @@ export function Navbar() {
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-7">{links}</nav>
+        <nav className="hidden md:flex items-center gap-7">
+          {isAuth ? authedLinks : publicLinks}
+        </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <ThemeSwitcher />
           {!isAuth ? (
             <>
-              <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex rounded-full" data-testid="login-cta">
-                <Link to="/login">Login</Link>
+              <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex rounded-full" data-testid="nav-player-login">
+                <Link to="/login"><Users className="mr-1.5 h-3.5 w-3.5" /> Player login</Link>
               </Button>
-              <Button asChild size="sm" className="rounded-full px-5" data-testid="register-cta">
-                <Link to="/register">Join an Academy</Link>
+              <Button asChild size="sm" className="rounded-full px-4 hidden sm:inline-flex" data-testid="nav-academy-login">
+                <Link to="/academy/login"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Academy login</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="rounded-full px-4 border-foreground/30 hidden lg:inline-flex" data-testid="register-cta">
+                <Link to="/register">Sign up</Link>
               </Button>
             </>
           ) : (
@@ -113,7 +130,20 @@ export function Navbar() {
       {open && (
         <div className="md:hidden border-t border-border bg-card">
           <div className="flex flex-col gap-4 px-4 py-4" onClick={() => setOpen(false)}>
-            {links}
+            {isAuth ? authedLinks : publicLinks}
+            {!isAuth && (
+              <div className="flex flex-col gap-2 pt-2 border-t border-border">
+                <Button asChild variant="ghost" size="sm" className="rounded-full justify-start" data-testid="mobile-player-login">
+                  <Link to="/login"><Users className="mr-1.5 h-3.5 w-3.5" /> Player login</Link>
+                </Button>
+                <Button asChild size="sm" className="rounded-full" data-testid="mobile-academy-login">
+                  <Link to="/academy/login"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Academy login</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="rounded-full border-foreground/30" data-testid="mobile-register-cta">
+                  <Link to="/register">Sign up</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

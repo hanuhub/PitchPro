@@ -126,7 +126,7 @@ export default function Landing() {
       </section>
 
       {/* MODULES (rounded bento) */}
-      <section className="mx-auto max-w-7xl px-4 md:px-8 py-12">
+      <section id="modules" className="mx-auto max-w-7xl px-4 md:px-8 py-12">
         <div className="mb-12">
           <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-2">— Built for academies</div>
           <h2 className="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight">Everything you need.<br/>Nothing you don't.</h2>

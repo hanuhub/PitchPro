@@ -9,6 +9,7 @@ import { Footer } from "@/components/Footer";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
+import AcademyLogin from "@/pages/AcademyLogin";
 import Register from "@/pages/Register";
 import About from "@/pages/About";
 import Coaches from "@/pages/Coaches";
@@ -43,6 +44,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Layout><Landing /></Layout>} />
             <Route path="/login" element={<Layout><Login /></Layout>} />
+            <Route path="/academy/login" element={<Layout><AcademyLogin /></Layout>} />
             <Route path="/register" element={<Layout><Register /></Layout>} />
             <Route path="/about" element={<Layout><About /></Layout>} />
             <Route path="/coaches" element={<Layout><Coaches /></Layout>} />

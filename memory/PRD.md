@@ -28,7 +28,13 @@ PitchPro is **a multi-tenant platform** that powers cricket academies. Academy o
 
 `--radius` set to **1rem**, with **rounded-2xl / rounded-3xl / rounded-full** used throughout (cards, inputs, buttons). Result: modern, soft, app-like feel.
 
-## Implemented
+## Implemented (POC, Apr 30 2026)
+### Frontend (latest)
+- **Split login**: separate `/login` (Player & Parent) and `/academy/login` (Academy admin + Platform admin tabs).
+- **Public navbar** is now platform-only — Home / Academies / Platform. Coaches / Games / Academy links are hidden until a user is signed in. Two distinct CTAs in the header: "Player login" and "Academy login".
+- Each login page cross-links to the other, and prefills its own demo credentials.
+- Mobile menu mirrors the same split (Player login, Academy login, Sign up CTAs).
+
 ### Backend
 - All iteration 1 & 2 endpoints unchanged.
 - Iteration 3 additions:

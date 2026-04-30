@@ -57,12 +57,12 @@ export default function Login() {
       <p className="mt-2 text-sm text-muted-foreground">{hint.sub}</p>
 
       {/* Role toggle */}
-      <div className="mt-6 grid grid-cols-2 border border-border bg-card rounded-sm overflow-hidden" data-testid="login-role-toggle">
+      <div className="mt-6 grid grid-cols-2 border border-border bg-card rounded-full overflow-hidden p-1" data-testid="login-role-toggle">
         <button
           type="button"
           onClick={() => setMode("parent")}
           data-testid="login-role-parent"
-          className={`px-3 py-3 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors ${
+          className={`px-3 py-2.5 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors rounded-full ${
             mode === "parent" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -72,7 +72,7 @@ export default function Login() {
           type="button"
           onClick={() => setMode("academy")}
           data-testid="login-role-academy"
-          className={`px-3 py-3 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors ${
+          className={`px-3 py-2.5 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors rounded-full ${
             mode === "academy" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -84,17 +84,17 @@ export default function Login() {
         <div>
           <Label htmlFor="email" className="font-display tracking-[0.2em] uppercase text-xs">Email</Label>
           <Input id="email" type="email" required autoComplete="email"
-                 className="mt-2 rounded-sm" data-testid="login-email-input"
+                 className="mt-2 rounded-2xl h-12" data-testid="login-email-input"
                  value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
         </div>
         <div>
           <Label htmlFor="password" className="font-display tracking-[0.2em] uppercase text-xs">Password</Label>
           <Input id="password" type="password" required autoComplete="current-password"
-                 className="mt-2 rounded-sm" data-testid="login-password-input"
+                 className="mt-2 rounded-2xl h-12" data-testid="login-password-input"
                  value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
         <Button type="submit" disabled={loading}
-                className="w-full rounded-sm font-display tracking-[0.2em] uppercase"
+                className="w-full rounded-full h-12 font-display tracking-[0.2em] uppercase"
                 data-testid="login-submit-button">
           {loading ? "Signing in…" : hint.cta}
         </Button>
@@ -109,7 +109,7 @@ export default function Login() {
         <button
           type="button"
           onClick={fillDemo}
-          className="w-full border border-border bg-card hover:border-primary text-xs text-muted-foreground p-3 rounded-sm transition-colors"
+          className="w-full border border-border bg-card hover:border-primary text-xs text-muted-foreground p-3 rounded-2xl transition-colors"
           data-testid="fill-demo-button"
         >
           <span className="font-display tracking-[0.2em] uppercase font-bold text-foreground">Use demo {hint.demo.label}</span>

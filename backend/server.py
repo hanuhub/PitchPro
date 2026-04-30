@@ -89,6 +89,8 @@ def public_user(user: dict) -> dict:
         "role": user.get("role", "user"),
         "phone": user.get("phone"),
         "kids": user.get("kids", []),
+        "academy_id": user.get("academy_id"),
+        "academy_name": user.get("academy_name"),
         "created_at": user.get("created_at"),
     }
 
@@ -128,6 +130,7 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=6)
     name: str = Field(min_length=1)
     phone: Optional[str] = None
+    academy_id: Optional[str] = None
 
 
 class LoginIn(BaseModel):
@@ -236,6 +239,19 @@ class FeeIn(BaseModel):
     status: Literal["pending", "paid", "overdue"] = "pending"
 
 
+class AcademyIn(BaseModel):
+    name: str
+    slug: str
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    photo_url: Optional[str] = None
+    accent_color: Optional[str] = None  # hex eg "#D82234"
+
+
 # --------------------- Helpers ---------------------
 def now_utc():
     return datetime.now(timezone.utc)
@@ -259,6 +275,19 @@ async def register(body: RegisterIn, response: Response):
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    academy_id = body.academy_id
+    academy_name = None
+    if academy_id:
+        academy = await db.academies.find_one({"id": academy_id}, {"_id": 0})
+        if not academy:
+            raise HTTPException(status_code=404, detail="Academy not found")
+        academy_name = academy["name"]
+    else:
+        # default to first academy if any exists, so the user has a context
+        first = await db.academies.find_one({}, {"_id": 0}, sort=[("created_at", 1)])
+        if first:
+            academy_id = first["id"]
+            academy_name = first["name"]
     user_id = str(uuid.uuid4())
     user_doc = {
         "id": user_id,
@@ -268,6 +297,8 @@ async def register(body: RegisterIn, response: Response):
         "phone": body.phone,
         "role": "user",
         "kids": [],
+        "academy_id": academy_id,
+        "academy_name": academy_name,
         "created_at": now_utc().isoformat(),
     }
     await db.users.insert_one(user_doc)
@@ -794,6 +825,39 @@ async def list_awards():
     return items
 
 
+# --------------------- Academies (multi-tenant platform) ---------------------
+@api_router.get("/academies")
+async def list_academies():
+    academies = await db.academies.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    # attach simple stats
+    for a in academies:
+        a["players_count"] = await db.users.count_documents({"academy_id": a["id"], "role": "user"})
+        a["lanes_count"] = await db.lanes.count_documents({})  # demo: shared lanes
+        a["coaches_count"] = await db.coaches.count_documents({})
+    return academies
+
+
+@api_router.get("/academies/{academy_id}")
+async def get_academy(academy_id: str):
+    a = await db.academies.find_one({"id": academy_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Academy not found")
+    a["players_count"] = await db.users.count_documents({"academy_id": academy_id, "role": "user"})
+    return a
+
+
+@api_router.post("/academies")
+async def create_academy(body: AcademyIn, request: Request):
+    await require_role(request, ["admin"])
+    if await db.academies.find_one({"slug": body.slug}):
+        raise HTTPException(status_code=400, detail="Slug already exists")
+    a = body.model_dump()
+    a["id"] = str(uuid.uuid4())
+    a["created_at"] = now_utc().isoformat()
+    await db.academies.insert_one(a)
+    return doc_serialize(a)
+
+
 # --------------------- Fees ---------------------
 @api_router.get("/fees/me")
 async def my_fees(request: Request):
@@ -1141,6 +1205,45 @@ async def seed_games():
     await db.games.insert_many(games)
 
 
+async def seed_academies():
+    if await db.academies.count_documents({}) > 0:
+        return
+    items = [
+        {"name": "Crease Cricket Academy", "slug": "crease",
+         "tagline": "Where talent meets technique.",
+         "description": "Founded in 2014 by former first-class players. Home of the U-14 regional champions and the original PitchPro pilot academy.",
+         "city": "Sportsville", "address": "12 Stadium Lane, Sportsville",
+         "phone": "+91 90000 11111", "email": "hello@crease.club",
+         "photo_url": "https://images.pexels.com/photos/30671893/pexels-photo-30671893.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+         "accent_color": "#D82234"},
+        {"name": "Boundary Line Academy", "slug": "boundaryline",
+         "tagline": "Hit. Move. Repeat.",
+         "description": "Indoor + outdoor T20-focused academy with bowling-machine lanes and video analysis suite.",
+         "city": "Mumbai", "address": "Plot 7, Andheri Sports Complex",
+         "phone": "+91 90000 22222", "email": "hello@boundaryline.in",
+         "photo_url": "https://images.pexels.com/photos/30401509/pexels-photo-30401509.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+         "accent_color": "#F59E0B"},
+        {"name": "Stumps & Co.", "slug": "stumps",
+         "tagline": "Classical coaching for modern cricketers.",
+         "description": "Boutique academy with 1-1 mentorship, technique-first batting and red-ball specialisation. Founded by ex-Ranji captains.",
+         "city": "Bangalore", "address": "Cubbon Park East Wing",
+         "phone": "+91 90000 33333", "email": "hello@stumps.cc",
+         "photo_url": "https://images.unsplash.com/photo-1675693303492-9a5bc898bf94?crop=entropy&cs=srgb&fm=jpg&w=800&q=85",
+         "accent_color": "#10B981"},
+    ]
+    for a in items:
+        a["id"] = str(uuid.uuid4())
+        a["created_at"] = now_utc().isoformat()
+    await db.academies.insert_many(items)
+    # backfill seeded users to first academy
+    first_id = items[0]["id"]
+    first_name = items[0]["name"]
+    await db.users.update_many(
+        {"role": {"$in": ["user", "coach", "admin"]}, "academy_id": {"$exists": False}},
+        {"$set": {"academy_id": first_id, "academy_name": first_name}}
+    )
+
+
 async def seed_demo_activity():
     """Seed sample bookings, sessions and fees so charts have data on first run."""
     if await db.fees.count_documents({}) > 0:
@@ -1250,6 +1353,7 @@ async def on_startup():
     await seed_lanes()
     await seed_coaches()
     await seed_awards()
+    await seed_academies()
     await seed_games()
     await seed_demo_activity()
 

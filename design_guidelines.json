@@ -1,0 +1,128 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 2: The Performance Pro",
+  "reasoning": "A cricket academy requires an energetic, professional, and trustworthy environment. Using the Performance Pro archetype in a dark theme captures the 'stadium under floodlights' aesthetic, providing a high-impact, focused, and sporty feel without falling into generic tech/SaaS traps. The color palette draws from real-world cricket elements: deep stadium night shadows, leather ball crimson, and outfield green.",
+  "colors": {
+    "background": "#090C10",
+    "foreground": "#F8FAFC",
+    "card": "#161B22",
+    "card_foreground": "#F8FAFC",
+    "primary": "#D82234",
+    "primary_foreground": "#FFFFFF",
+    "secondary": "#10B981",
+    "secondary_foreground": "#000000",
+    "muted": "#21262D",
+    "muted_foreground": "#8B949E",
+    "accent": "#E63946",
+    "accent_foreground": "#FFFFFF",
+    "border": "#30363D",
+    "input": "#21262D",
+    "ring": "#D82234"
+  },
+  "typography": {
+    "heading_font": "Barlow Condensed",
+    "body_font": "DM Sans",
+    "heading_strategy": "Uppercase or tight-tracked athletic sans for high impact. Use font-black (900) for hero headings and font-bold (700) for section headings.",
+    "body_strategy": "Clean, highly readable geometric sans for data clarity and forms.",
+    "scale": {
+      "h1": "text-5xl md:text-6xl tracking-tighter uppercase font-black",
+      "h2": "text-3xl md:text-4xl tracking-tight uppercase font-bold",
+      "h3": "text-xl md:text-2xl font-bold",
+      "h4": "text-lg font-bold",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-muted-foreground",
+      "overline": "text-xs tracking-[0.2em] uppercase font-bold text-primary"
+    }
+  },
+  "layout_and_spacing": {
+    "general": "Generous spacing. Use p-6 to p-8 for cards to let content breathe. Avoid cramped data views.",
+    "marketing_pages": "Mode A: 'Tetris' Grid. Asymmetric bento grids for features. Overlapping images. Use high contrast sections with generous padding (py-24).",
+    "dashboards": "Mode B: 'Control Room' Grid. Strict grid-cols-1 md:grid-cols-3 lg:grid-cols-4. 1px borders, flat backgrounds. No floating soft cards.",
+    "borders_and_surfaces": "Use 1px solid borders (border-border) with flat colors. Replace soft drop-shadows with inner glows or sharp neon 1px strokes for active states. Use 'The Tracing Beam' or neon highlight for primary calls to action."
+  },
+  "components": {
+    "buttons": "Sharp corners or very slight rounding (rounded-sm). High contrast text. Hover state must brighten the background and keep text readable.",
+    "cards": "Cardless or flat geometric panels (rounded-md max). Border border-white/10. No massive drop shadows; use solid backgrounds.",
+    "navigation": "Sticky top nav. Use 'Crystal Glass' effect (bg-background/80 backdrop-blur-xl border-b border-border).",
+    "tables_and_lists": "Dense data view for admin. Generous row padding for player stats. Alternating row colors or simple thin bottom borders.",
+    "forms": "Use Shadcn forms. Inputs should have muted dark backgrounds with a bright primary ring on focus."
+  },
+  "animations": {
+    "interactions": "Snappy, not floaty. Fast transitions (duration-150) for hover states.",
+    "page_load": "Staggered fade-up for bento grid elements.",
+    "hover": "Cards lift slightly (-translate-y-1) with border color shifting to primary or secondary depending on context."
+  },
+  "media": {
+    "hero_background": {
+      "url": "https://images.pexels.com/photos/36741130/pexels-photo-36741130.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Packed stadium during a thrilling night cricket match under floodlights. Use with bg-black/60 overlay to ensure text contrast."
+    },
+    "hero_action": {
+      "url": "https://images.pexels.com/photos/30671893/pexels-photo-30671893.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Dynamic cricket match scene with batsman in action."
+    },
+    "about_coach": {
+      "url": "https://images.unsplash.com/photo-1593766788306-28561086694e?crop=entropy&cs=srgb&fm=jpg&w=800&q=85",
+      "description": "Professional looking coach. Use for About Us or Coach Profiles."
+    },
+    "cricket_ball_detail": {
+      "url": "https://images.pexels.com/photos/30401509/pexels-photo-30401509.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Macro shot of red leather cricket ball. Great for feature card backgrounds."
+    },
+    "game_ground": {
+      "url": "https://images.unsplash.com/photo-1675693303492-9a5bc898bf94?crop=entropy&cs=srgb&fm=jpg&w=800&q=85",
+      "description": "Ground view for weekly games location card."
+    }
+  },
+  "key_screens": [
+    {
+      "name": "Landing Page",
+      "sections": [
+        "Hero: Massive Barlow Condensed H1, Stadium Background (heavy overlay), dual CTA (Book Lane, Join Academy).",
+        "Marquee: Scrolling text of 'TRAIN LIKE A PRO • HIGH PERFORMANCE • ELITE COACHING'.",
+        "Features Bento Grid: Highlighting Lane Booking, 1-1 Coaching, Match Analysis.",
+        "About Us: Coach profiles in stark, high-contrast cards."
+      ]
+    },
+    {
+      "name": "User Dashboard",
+      "sections": [
+        "Header: Greeting with Quick Actions.",
+        "Upcoming Schedule: Horizontal scroll or tight grid of next booked lane and coaching session.",
+        "Kids Progress: Line charts (Recharts) showing batting/bowling improvement over time.",
+        "Weekly Match: Detailed card with map placeholder, team roster, and WhatsApp join link."
+      ]
+    },
+    {
+      "name": "Booking Module",
+      "sections": [
+        "Calendar View: Shadcn calendar styled with dark theme.",
+        "Time Slots: Selectable chips for available times.",
+        "Confirmation: Modal with details and policy (modify up to 24 hrs)."
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "sections": [
+        "Overview: KPI metrics (Active lanes, pending sessions, kids enrolled).",
+        "User Management: Table view of users/coaches with roles.",
+        "Progress Reporting: Form to input weekly stats and generate email/in-app notifications."
+      ]
+    }
+  ],
+  "accessibility_and_testing": {
+    "contrast": "Ensure white text on the #D82234 primary button meets minimum 4.5:1 ratio.",
+    "testing_attributes": "All interactive elements MUST have descriptive data-testid attributes (e.g., data-testid='hero-book-lane-button').",
+    "focus": "Focus states must use ring-2 ring-primary ring-offset-2 ring-offset-background."
+  },
+  "instructions_to_main_agent": [
+    "Install and setup the required fonts (Barlow Condensed, DM Sans) via Google Fonts in index.html or global CSS.",
+    "Customize Tailwind config with the provided color hexes in the exact structure above.",
+    "Do NOT use pure border-radius on everything; mix sharp edges and slight rounding (rounded-sm/md) to maintain an athletic aesthetic.",
+    "Implement Lucide-react for standard UI icons and consider Phosphor Icons for bolder sports imagery if needed.",
+    "Build the dashboard using a 'Control Room' grid philosophy - dense, 1px borders, data-heavy but clean.",
+    "Do NOT use placeholder image services like via.placeholder.com. Use the exact URLs provided in the media section.",
+    "For progress charts, use Recharts and theme the strokes with the primary (#D82234) and secondary (#10B981) colors.",
+    "Use standard React/Tailwind/Shadcn structure."
+  ]
+}

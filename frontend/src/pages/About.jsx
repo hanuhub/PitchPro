@@ -18,11 +18,11 @@ export default function About() {
         </div>
         <div className="relative mx-auto max-w-7xl px-4 md:px-8 py-24">
           <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">— About Crease</div>
-          <h1 className="font-display text-5xl md:text-7xl font-black uppercase tracking-tight max-w-3xl">
+          <h1 className="font-display text-5xl md:text-7xl font-bold uppercase tracking-tight max-w-3xl">
             Where talent meets technique.
           </h1>
           <p className="mt-6 max-w-2xl text-muted-foreground">
-            Founded in 2014 by former first-class players, Crease Academy is a high-performance cricket
+            Founded in 2014 by former first-class players, PitchPro is a high-performance cricket
             training centre dedicated to nurturing players from age 7 to professionals. We blend modern
             coaching science with traditional cricketing wisdom.
           </p>

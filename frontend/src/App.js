@@ -16,6 +16,7 @@ import Dashboard from "@/pages/Dashboard";
 import BookLane from "@/pages/BookLane";
 import Coaching from "@/pages/Coaching";
 import Admin from "@/pages/Admin";
+import Staff from "@/pages/Staff";
 
 function Layout({ children }) {
   return (
@@ -51,6 +52,9 @@ function App() {
             } />
             <Route path="/admin" element={
               <ProtectedRoute roles={["admin"]}><Layout><Admin /></Layout></ProtectedRoute>
+            } />
+            <Route path="/staff" element={
+              <ProtectedRoute roles={["admin", "coach"]}><Layout><Staff /></Layout></ProtectedRoute>
             } />
           </Routes>
         </BrowserRouter>

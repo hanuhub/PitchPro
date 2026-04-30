@@ -9,7 +9,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Send, Plus, Megaphone } from "lucide-react";
+import { Trash2, Send, Plus, Megaphone, CheckCircle2 } from "lucide-react";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 
 export default function Admin() {
   const [stats, setStats] = useState({});
@@ -20,9 +24,11 @@ export default function Admin() {
   const [progressList, setProgressList] = useState([]);
   const [games, setGames] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [charts, setCharts] = useState({ timeseries: [], lanes: [], coaches: [], roles: [] });
+  const [fees, setFees] = useState([]);
 
   const reload = async () => {
-    const [s, u, l, c, b, p, g, a] = await Promise.all([
+    const [s, u, l, c, b, p, g, a, ch, fe] = await Promise.all([
       api.get("/admin/stats"),
       api.get("/admin/users"),
       api.get("/lanes"),
@@ -31,9 +37,12 @@ export default function Admin() {
       api.get("/progress"),
       api.get("/games"),
       api.get("/announcements"),
+      api.get("/admin/charts"),
+      api.get("/fees"),
     ]);
     setStats(s.data); setUsers(u.data); setLanes(l.data); setCoaches(c.data);
     setBookings(b.data); setProgressList(p.data); setGames(g.data); setAnnouncements(a.data);
+    setCharts(ch.data); setFees(fe.data);
   };
 
   useEffect(() => { reload(); }, []);
@@ -41,7 +50,7 @@ export default function Admin() {
   return (
     <div className="mx-auto max-w-7xl px-4 md:px-8 py-12">
       <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">— Admin Console</div>
-      <h1 className="font-display text-5xl md:text-6xl font-black uppercase tracking-tight">Control room</h1>
+      <h1 className="font-display text-5xl md:text-6xl font-bold uppercase tracking-tight">Control room</h1>
 
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" data-testid="admin-stats">
         <KPI label="Users" value={stats.users} />
@@ -53,6 +62,84 @@ export default function Admin() {
         <KPI label="Games" value={stats.games} />
       </div>
 
+      {/* Charts */}
+      <div className="mt-6 grid lg:grid-cols-3 gap-3" data-testid="admin-charts">
+        <ChartCard title="Bookings & sessions (14 days)" wide>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={charts.timeseries} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+              <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Area type="monotone" dataKey="bookings" stroke="hsl(var(--chart-1))" fill="url(#g1)" strokeWidth={2} />
+              <Area type="monotone" dataKey="sessions" stroke="hsl(var(--chart-2))" fill="url(#g2)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Revenue (14 days)">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={charts.timeseries} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+              <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Bar dataKey="revenue" fill="hsl(var(--chart-3))" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="mt-3 grid lg:grid-cols-3 gap-3">
+        <ChartCard title="Lane utilisation">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={charts.lanes} layout="vertical" margin={{ left: 0, right: 8, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis type="number" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} width={120} />
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Bar dataKey="bookings" fill="hsl(var(--chart-1))" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Sessions by coach">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={charts.coaches} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+              <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Bar dataKey="sessions" fill="hsl(var(--chart-2))" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Member roles">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={charts.roles} dataKey="count" nameKey="role" innerRadius={36} outerRadius={64} paddingAngle={2}>
+                {charts.roles.map((r, i) => (
+                  <Cell key={r.role} fill={`hsl(var(--chart-${(i % 5) + 1}))`} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
       <Tabs defaultValue="lanes" className="mt-10">
         <TabsList className="bg-card border border-border rounded-sm flex-wrap h-auto" data-testid="admin-tabs">
           <TabsTrigger value="lanes" className="font-display tracking-[0.2em] uppercase text-xs">Lanes</TabsTrigger>
@@ -60,6 +147,7 @@ export default function Admin() {
           <TabsTrigger value="users" className="font-display tracking-[0.2em] uppercase text-xs">Users</TabsTrigger>
           <TabsTrigger value="bookings" className="font-display tracking-[0.2em] uppercase text-xs">Bookings</TabsTrigger>
           <TabsTrigger value="progress" className="font-display tracking-[0.2em] uppercase text-xs">Progress</TabsTrigger>
+          <TabsTrigger value="fees" className="font-display tracking-[0.2em] uppercase text-xs">Fees</TabsTrigger>
           <TabsTrigger value="games" className="font-display tracking-[0.2em] uppercase text-xs">Games</TabsTrigger>
           <TabsTrigger value="ann" className="font-display tracking-[0.2em] uppercase text-xs">Announce</TabsTrigger>
         </TabsList>
@@ -71,9 +159,19 @@ export default function Admin() {
         <TabsContent value="progress" className="mt-6">
           <ProgressTab users={users} coaches={coaches} list={progressList} reload={reload} />
         </TabsContent>
+        <TabsContent value="fees" className="mt-6"><FeesTab users={users} fees={fees} reload={reload} /></TabsContent>
         <TabsContent value="games" className="mt-6"><GamesTab games={games} reload={reload} /></TabsContent>
         <TabsContent value="ann" className="mt-6"><AnnouncementsTab list={announcements} reload={reload} users={users} /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function ChartCard({ title, children, wide }) {
+  return (
+    <div className={`border border-border bg-card p-4 ${wide ? "lg:col-span-2" : ""}`}>
+      <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary mb-2">— {title}</div>
+      <div className="h-56">{children}</div>
     </div>
   );
 }
@@ -458,6 +556,87 @@ function AnnouncementsTab({ list, reload, users }) {
             <div className="mt-1 text-[10px] tracking-[0.2em] uppercase text-muted-foreground">{new Date(a.created_at).toLocaleString()}</div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+
+/* -------- Fees -------- */
+function FeesTab({ users, fees, reload }) {
+  const [form, setForm] = useState({
+    user_id: "", kid_name: "", label: "", amount: 50, due_date: "",
+    status: "pending",
+  });
+  const create = async () => {
+    try {
+      await api.post("/fees", { ...form, amount: Number(form.amount) });
+      toast.success("Fee added");
+      reload();
+      setForm({ ...form, label: "", amount: 50, due_date: "", kid_name: "" });
+    } catch (e) { toast.error(errorMsg(e)); }
+  };
+  const markPaid = async (id) => {
+    try { await api.put(`/fees/${id}/mark-paid`); toast.success("Marked paid"); reload(); }
+    catch (e) { toast.error(errorMsg(e)); }
+  };
+  const remove = async (id) => {
+    if (!confirm("Delete invoice?")) return;
+    try { await api.delete(`/fees/${id}`); reload(); } catch (e) { toast.error(errorMsg(e)); }
+  };
+  const target = users.find((u) => u.id === form.user_id);
+  return (
+    <div className="grid lg:grid-cols-3 gap-4">
+      <div className="lg:col-span-2 border border-border bg-card divide-y divide-border" data-testid="admin-fees-list">
+        {fees.length === 0 && <div className="p-8 text-center text-sm text-muted-foreground">No invoices yet</div>}
+        {fees.map((f) => (
+          <div key={f.id} className="px-4 py-3 grid grid-cols-2 md:grid-cols-6 gap-2 items-center text-sm">
+            <div className="col-span-2 md:col-span-2">
+              <div className="font-display text-base font-bold uppercase">{f.label}</div>
+              <div className="text-xs text-muted-foreground">{f.user_name} · {f.kid_name || "—"}</div>
+            </div>
+            <div className="text-muted-foreground">{f.due_date}</div>
+            <div className="font-display text-lg font-bold">${Number(f.amount).toFixed(0)}</div>
+            <div className={`text-[10px] tracking-[0.2em] uppercase font-bold px-2 py-1 border w-fit ${
+              f.status === "paid" ? "border-secondary text-secondary"
+              : f.status === "overdue" ? "border-destructive text-destructive"
+              : "border-primary text-primary"
+            }`}>{f.status}</div>
+            <div className="flex justify-end gap-1">
+              {f.status !== "paid" && (
+                <Button size="sm" variant="outline" className="rounded-sm" onClick={() => markPaid(f.id)} data-testid={`mark-paid-${f.id}`}>
+                  <CheckCircle2 className="h-4 w-4" />
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => remove(f.id)}><Trash2 className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border border-border bg-card p-5 space-y-3">
+        <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary">— New invoice</div>
+        <Select value={form.user_id} onValueChange={(v) => setForm({ ...form, user_id: v })}>
+          <SelectTrigger data-testid="fee-user-select"><SelectValue placeholder="Parent" /></SelectTrigger>
+          <SelectContent>
+            {users.filter((u) => u.role === "user").map((u) => (
+              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {target?.kids?.length ? (
+          <Select value={form.kid_name} onValueChange={(v) => setForm({ ...form, kid_name: v })}>
+            <SelectTrigger><SelectValue placeholder="Kid (optional)" /></SelectTrigger>
+            <SelectContent>{target.kids.map((k) => <SelectItem key={k.name} value={k.name}>{k.name}</SelectItem>)}</SelectContent>
+          </Select>
+        ) : (
+          <Input placeholder="Kid name (optional)" value={form.kid_name} onChange={(e) => setForm({ ...form, kid_name: e.target.value })} />
+        )}
+        <Input placeholder="Label (eg Monthly Coaching - Mar 2026)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} data-testid="fee-label-input" />
+        <Input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} data-testid="fee-amount-input" />
+        <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} data-testid="fee-date-input" />
+        <Button className="w-full rounded-sm font-display tracking-[0.2em] uppercase" onClick={create} data-testid="fee-create-button">
+          <Plus className="h-4 w-4 mr-2" /> Add invoice
+        </Button>
       </div>
     </div>
   );

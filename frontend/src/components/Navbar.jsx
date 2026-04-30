@@ -31,19 +31,22 @@ export function Navbar() {
       {isAuth && user.role === "admin" && (
         <NavLink to="/admin" className={navLinkClass} data-testid="nav-admin">Admin</NavLink>
       )}
+      {isAuth && (user.role === "admin" || user.role === "coach") && (
+        <NavLink to="/staff" className={navLinkClass} data-testid="nav-staff">Operations</NavLink>
+      )}
     </>
   );
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
-        <Link to="/" className="flex items-center gap-2" data-testid="brand-link">
-          <div className="grid h-8 w-8 place-items-center bg-primary">
-            <span className="font-display text-xl font-black text-primary-foreground">C</span>
+        <Link to="/" className="flex items-center gap-2.5" data-testid="brand-link">
+          <div className="grid h-9 w-9 place-items-center bg-primary rounded-sm">
+            <span className="font-display text-2xl font-bold leading-none text-primary-foreground">P</span>
           </div>
           <div className="leading-none">
-            <div className="font-display text-xl font-black uppercase tracking-tight">Crease</div>
-            <div className="text-[10px] tracking-[0.3em] text-muted-foreground uppercase">Academy</div>
+            <div className="font-display text-2xl font-bold uppercase tracking-tight">PitchPro</div>
+            <div className="text-[9px] tracking-[0.32em] text-muted-foreground uppercase mt-0.5">Cricket Academy</div>
           </div>
         </Link>
 

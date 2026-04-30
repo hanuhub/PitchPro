@@ -26,7 +26,7 @@ db = client[os.environ['DB_NAME']]
 
 JWT_ALGORITHM = "HS256"
 
-app = FastAPI(title="Cricket Academy API")
+app = FastAPI(title="PitchPro Cricket Academy API")
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -225,6 +225,15 @@ class AnnouncementIn(BaseModel):
     target_user_id: Optional[str] = None
     subject: str
     message: str
+
+
+class FeeIn(BaseModel):
+    user_id: str
+    kid_name: Optional[str] = None
+    label: str
+    amount: float
+    due_date: str  # YYYY-MM-DD
+    status: Literal["pending", "paid", "overdue"] = "pending"
 
 
 # --------------------- Helpers ---------------------
@@ -785,7 +794,172 @@ async def list_awards():
     return items
 
 
+# --------------------- Fees ---------------------
+@api_router.get("/fees/me")
+async def my_fees(request: Request):
+    user = await get_current_user(request)
+    items = await db.fees.find({"user_id": user["id"]}, {"_id": 0}).sort("due_date", -1).to_list(500)
+    return items
+
+
+@api_router.get("/fees")
+async def list_fees(request: Request):
+    await require_role(request, ["admin", "coach"])
+    items = await db.fees.find({}, {"_id": 0}).sort("due_date", -1).to_list(2000)
+    return items
+
+
+@api_router.post("/fees")
+async def create_fee(body: FeeIn, request: Request):
+    await require_role(request, ["admin"])
+    target = await db.users.find_one({"id": body.user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    fee = body.model_dump()
+    fee["id"] = str(uuid.uuid4())
+    fee["user_email"] = target["email"]
+    fee["user_name"] = target["name"]
+    fee["created_at"] = now_utc().isoformat()
+    await db.fees.insert_one(fee)
+    await db.notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": body.user_id,
+        "type": "fee_added",
+        "channel": "in-app",
+        "subject": f"New invoice — {body.label}",
+        "message": f"Amount ${body.amount:.2f} due {body.due_date}.",
+        "read": False,
+        "created_at": now_utc().isoformat(),
+    })
+    return doc_serialize(fee)
+
+
+@api_router.put("/fees/{fee_id}/mark-paid")
+async def mark_fee_paid(fee_id: str, request: Request):
+    await require_role(request, ["admin"])
+    res = await db.fees.update_one({"id": fee_id}, {"$set": {"status": "paid", "paid_at": now_utc().isoformat()}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Fee not found")
+    return {"ok": True}
+
+
+@api_router.delete("/fees/{fee_id}")
+async def delete_fee(fee_id: str, request: Request):
+    await require_role(request, ["admin"])
+    await db.fees.delete_one({"id": fee_id})
+    return {"ok": True}
+
+
+# --------------------- Staff (academy) views ---------------------
+@api_router.get("/staff/lane-usage")
+async def staff_lane_usage(target_date: str, request: Request):
+    await require_role(request, ["admin", "coach"])
+    lanes = await db.lanes.find({}, {"_id": 0}).to_list(500)
+    bookings = await db.bookings.find(
+        {"booking_date": target_date, "status": {"$ne": "cancelled"}}, {"_id": 0}
+    ).to_list(2000)
+    out = []
+    for l in lanes:
+        slots = []
+        for b in bookings:
+            if b["lane_id"] != l["id"]:
+                continue
+            for h in range(b["start_hour"], b["start_hour"] + b.get("duration_hours", 1)):
+                slots.append({"hour": h, "user_name": b.get("user_name"),
+                              "user_email": b.get("user_email"),
+                              "booking_id": b["id"], "duration": b.get("duration_hours", 1)})
+        out.append({**l, "slots": sorted(slots, key=lambda x: x["hour"])})
+    return out
+
+
+@api_router.get("/staff/coach-usage")
+async def staff_coach_usage(target_date: str, request: Request):
+    await require_role(request, ["admin", "coach"])
+    coaches = await db.coaches.find({}, {"_id": 0}).to_list(500)
+    sessions = await db.sessions.find(
+        {"session_date": target_date, "status": {"$ne": "cancelled"}}, {"_id": 0}
+    ).to_list(2000)
+    sd = datetime.strptime(target_date, "%Y-%m-%d")
+    weekday = sd.weekday()
+    out = []
+    for c in coaches:
+        slots = []
+        for s in sessions:
+            if s["coach_id"] != c["id"]:
+                continue
+            for h in range(s["start_hour"], s["start_hour"] + s.get("duration_hours", 1)):
+                slots.append({"hour": h, "user_name": s.get("user_name"),
+                              "kid_name": s.get("kid_name"), "focus": s.get("focus"),
+                              "session_id": s["id"]})
+        out.append({**c, "slots": sorted(slots, key=lambda x: x["hour"]),
+                    "available_today": weekday in c.get("available_days", [])})
+    return out
+
+
 # --------------------- Admin ---------------------
+@api_router.get("/admin/charts")
+async def admin_charts(request: Request):
+    await require_role(request, ["admin"])
+    today = datetime.now(timezone.utc).date()
+    days: List[str] = [(today - timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
+    bookings = await db.bookings.find({}, {"_id": 0}).to_list(5000)
+    sessions = await db.sessions.find({}, {"_id": 0}).to_list(5000)
+    lanes = await db.lanes.find({}, {"_id": 0}).to_list(500)
+    coaches = await db.coaches.find({}, {"_id": 0}).to_list(500)
+
+    # Bookings & sessions per day (last 14 days)
+    booking_by_day = {d: 0 for d in days}
+    session_by_day = {d: 0 for d in days}
+    revenue_by_day = {d: 0.0 for d in days}
+    for b in bookings:
+        if b.get("status") == "cancelled":
+            continue
+        d = b.get("booking_date")
+        if d in booking_by_day:
+            booking_by_day[d] += 1
+            revenue_by_day[d] += float(b.get("total_price", 0))
+    for s in sessions:
+        if s.get("status") == "cancelled":
+            continue
+        d = s.get("session_date")
+        if d in session_by_day:
+            session_by_day[d] += 1
+            revenue_by_day[d] += float(s.get("total_price", 0))
+    timeseries = [{"date": d[5:], "bookings": booking_by_day[d],
+                   "sessions": session_by_day[d], "revenue": round(revenue_by_day[d], 2)}
+                  for d in days]
+
+    # Lane utilization
+    lane_counts = {l["id"]: {"name": l["name"], "bookings": 0, "revenue": 0.0} for l in lanes}
+    for b in bookings:
+        if b.get("status") == "cancelled":
+            continue
+        if b["lane_id"] in lane_counts:
+            lane_counts[b["lane_id"]]["bookings"] += 1
+            lane_counts[b["lane_id"]]["revenue"] += float(b.get("total_price", 0))
+    lane_chart = list(lane_counts.values())
+
+    # Coach session counts
+    coach_counts = {c["id"]: {"name": c["name"], "sessions": 0} for c in coaches}
+    for s in sessions:
+        if s.get("status") == "cancelled":
+            continue
+        if s["coach_id"] in coach_counts:
+            coach_counts[s["coach_id"]]["sessions"] += 1
+    coach_chart = list(coach_counts.values())
+
+    # Role mix
+    user_roles = await db.users.aggregate([{"$group": {"_id": "$role", "count": {"$sum": 1}}}]).to_list(20)
+    role_chart = [{"role": r["_id"], "count": r["count"]} for r in user_roles]
+
+    return {
+        "timeseries": timeseries,
+        "lanes": lane_chart,
+        "coaches": coach_chart,
+        "roles": role_chart,
+    }
+
+
 @api_router.get("/admin/users")
 async def admin_users(request: Request):
     await require_role(request, ["admin", "coach"])
@@ -965,6 +1139,99 @@ async def seed_games():
     await db.games.insert_many(games)
 
 
+async def seed_demo_activity():
+    """Seed sample bookings, sessions and fees so charts have data on first run."""
+    if await db.fees.count_documents({}) > 0:
+        return
+    user = await db.users.find_one({"email": "user@cricketacademy.com"}, {"_id": 0})
+    lanes = await db.lanes.find({}, {"_id": 0}).to_list(20)
+    coaches = await db.coaches.find({}, {"_id": 0}).to_list(20)
+    if not (user and lanes and coaches):
+        return
+    today = datetime.now(timezone.utc).date()
+    # Past 12 days of bookings (synthetic, in past so won't conflict)
+    bookings = []
+    for i in range(12, 0, -1):
+        d = today - timedelta(days=i)
+        lane = lanes[i % len(lanes)]
+        b = {
+            "id": str(uuid.uuid4()),
+            "lane_id": lane["id"], "lane_name": lane["name"],
+            "user_id": user["id"], "user_name": user["name"], "user_email": user["email"],
+            "booking_date": d.isoformat(),
+            "start_hour": 9 + (i % 6),
+            "duration_hours": 1,
+            "notes": "",
+            "status": "confirmed",
+            "total_price": float(lane["hourly_rate"]),
+            "created_at": now_utc().isoformat(),
+        }
+        bookings.append(b)
+    if bookings:
+        await db.bookings.insert_many(bookings)
+
+    sessions = []
+    for i in range(10, 0, -1):
+        d = today - timedelta(days=i)
+        coach = coaches[i % len(coaches)]
+        if d.weekday() not in coach.get("available_days", []):
+            continue
+        s = {
+            "id": str(uuid.uuid4()),
+            "coach_id": coach["id"], "coach_name": coach["name"],
+            "user_id": user["id"], "user_name": user["name"],
+            "kid_name": (user.get("kids") or [{}])[0].get("name", ""),
+            "session_date": d.isoformat(),
+            "start_hour": 11 + (i % 5),
+            "duration_hours": 1,
+            "focus": "Technique",
+            "status": "confirmed",
+            "total_price": float(coach.get("hourly_rate", 50)),
+            "created_at": now_utc().isoformat(),
+        }
+        sessions.append(s)
+    if sessions:
+        await db.sessions.insert_many(sessions)
+
+    # Sample fees for the test user
+    fees = [
+        {"id": str(uuid.uuid4()), "user_id": user["id"],
+         "user_name": user["name"], "user_email": user["email"],
+         "kid_name": "Aarav Sharma", "label": "Monthly Coaching — Feb 2026",
+         "amount": 320.0, "due_date": (today - timedelta(days=2)).isoformat(),
+         "status": "paid", "paid_at": now_utc().isoformat(),
+         "created_at": now_utc().isoformat()},
+        {"id": str(uuid.uuid4()), "user_id": user["id"],
+         "user_name": user["name"], "user_email": user["email"],
+         "kid_name": "Aarav Sharma", "label": "Monthly Coaching — Mar 2026",
+         "amount": 320.0, "due_date": (today + timedelta(days=10)).isoformat(),
+         "status": "pending", "created_at": now_utc().isoformat()},
+        {"id": str(uuid.uuid4()), "user_id": user["id"],
+         "user_name": user["name"], "user_email": user["email"],
+         "kid_name": "Diya Sharma", "label": "Equipment Kit", "amount": 120.0,
+         "due_date": (today + timedelta(days=5)).isoformat(),
+         "status": "pending", "created_at": now_utc().isoformat()},
+    ]
+    await db.fees.insert_many(fees)
+
+    # Sample progress reports
+    progress_items = []
+    for i, label in enumerate(["Week 9 - 2026", "Week 10 - 2026", "Week 11 - 2026"]):
+        progress_items.append({
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"], "user_name": user["name"], "user_email": user["email"],
+            "kid_name": "Aarav Sharma", "period_type": "weekly",
+            "period_label": label, "coach_id": coaches[0]["id"],
+            "batting_score": 65 + i * 4, "bowling_score": 60 + i * 3,
+            "fielding_score": 70 + i * 2, "fitness_score": 72 + i * 3,
+            "summary": "Strong improvement in stance and footwork. Continues to commit to drills.",
+            "strengths": ["Front-foot drive", "Match temperament"],
+            "areas_to_improve": ["Pull shot", "Stamina in long sessions"],
+            "created_at": (now_utc() - timedelta(days=21 - i * 7)).isoformat(),
+        })
+    await db.progress.insert_many(progress_items)
+
+
 @app.on_event("startup")
 async def on_startup():
     try:
@@ -982,11 +1249,12 @@ async def on_startup():
     await seed_coaches()
     await seed_awards()
     await seed_games()
+    await seed_demo_activity()
 
 
 @api_router.get("/")
 async def root():
-    return {"message": "Cricket Academy API"}
+    return {"message": "PitchPro Cricket Academy API"}
 
 
 # Include the router in the main app

@@ -5,10 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Users, Building2 } from "lucide-react";
+
+const ROLE_HINT = {
+  parent: {
+    title: "Parent sign in",
+    sub: "Track your child's progress, fees, matches, and bookings.",
+    cta: "Sign in as parent",
+    demo: { email: "user@cricketacademy.com", password: "User@12345", label: "Parent" },
+  },
+  academy: {
+    title: "Academy sign in",
+    sub: "Operations dashboard — lanes, coaches, fees, players, announcements.",
+    cta: "Sign in as academy staff",
+    demo: { email: "admin@cricketacademy.com", password: "Admin@12345", label: "Admin" },
+  },
+};
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [mode, setMode] = useState("parent");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,20 +36,51 @@ export default function Login() {
     const res = await login(email, password);
     setLoading(false);
     if (res.ok) {
-      toast.success("Welcome back!");
-      navigate(res.user.role === "admin" ? "/admin" : "/dashboard");
+      toast.success(`Welcome back, ${res.user.name.split(" ")[0]}!`);
+      navigate(routeFor(res.user.role));
     } else {
       toast.error(res.error);
     }
   };
 
+  const fillDemo = () => {
+    const d = ROLE_HINT[mode].demo;
+    setEmail(d.email); setPassword(d.password);
+  };
+
+  const hint = ROLE_HINT[mode];
+
   return (
     <div className="mx-auto max-w-md px-4 py-20">
-      <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">Member Sign In</div>
-      <h1 className="font-display text-5xl font-black uppercase tracking-tight">Welcome back</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Sign in to manage your bookings, sessions, and player progress.</p>
+      <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">PitchPro Members</div>
+      <h1 className="font-display text-5xl font-bold uppercase tracking-tight">{hint.title}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{hint.sub}</p>
 
-      <form onSubmit={submit} className="mt-10 space-y-5" data-testid="login-form">
+      {/* Role toggle */}
+      <div className="mt-6 grid grid-cols-2 border border-border bg-card rounded-sm overflow-hidden" data-testid="login-role-toggle">
+        <button
+          type="button"
+          onClick={() => setMode("parent")}
+          data-testid="login-role-parent"
+          className={`px-3 py-3 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors ${
+            mode === "parent" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Users className="h-4 w-4" /> Parent
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("academy")}
+          data-testid="login-role-academy"
+          className={`px-3 py-3 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors ${
+            mode === "academy" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Building2 className="h-4 w-4" /> Academy
+        </button>
+      </div>
+
+      <form onSubmit={submit} className="mt-8 space-y-5" data-testid="login-form">
         <div>
           <Label htmlFor="email" className="font-display tracking-[0.2em] uppercase text-xs">Email</Label>
           <Input id="email" type="email" required autoComplete="email"
@@ -48,20 +96,32 @@ export default function Login() {
         <Button type="submit" disabled={loading}
                 className="w-full rounded-sm font-display tracking-[0.2em] uppercase"
                 data-testid="login-submit-button">
-          {loading ? "Signing in…" : "Sign In"}
+          {loading ? "Signing in…" : hint.cta}
         </Button>
-        <p className="text-center text-sm text-muted-foreground">
-          New here?{" "}
-          <Link to="/register" className="text-primary font-bold tracking-wide" data-testid="link-to-register">
-            Join the academy
-          </Link>
-        </p>
-        <div className="border border-border rounded-sm p-3 text-xs text-muted-foreground">
-          <div className="font-display tracking-[0.2em] uppercase font-bold text-foreground mb-1">Demo accounts</div>
-          Admin — admin@cricketacademy.com / Admin@12345<br/>
-          User — user@cricketacademy.com / User@12345
-        </div>
+        {mode === "parent" && (
+          <p className="text-center text-sm text-muted-foreground">
+            New here?{" "}
+            <Link to="/register" className="text-primary font-bold tracking-wide" data-testid="link-to-register">
+              Join PitchPro
+            </Link>
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={fillDemo}
+          className="w-full border border-border bg-card hover:border-primary text-xs text-muted-foreground p-3 rounded-sm transition-colors"
+          data-testid="fill-demo-button"
+        >
+          <span className="font-display tracking-[0.2em] uppercase font-bold text-foreground">Use demo {hint.demo.label}</span>
+          <span className="block mt-1">{hint.demo.email}</span>
+        </button>
       </form>
     </div>
   );
+}
+
+export function routeFor(role) {
+  if (role === "admin") return "/admin";
+  if (role === "coach") return "/staff";
+  return "/dashboard";
 }

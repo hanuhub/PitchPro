@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorMsg } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, MapPin, Trash2, BarChart3, Bell, Users } from "lucide-react";
+import {
+  Calendar, Clock, MapPin, Trash2, BarChart3, Bell, Users, DollarSign, TrendingUp,
+} from "lucide-react";
 import { toast } from "sonner";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
+import {
+  LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell, Legend, BarChart, Bar,
+} from "recharts";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -15,16 +20,19 @@ export default function Dashboard() {
   const [progress, setProgress] = useState([]);
   const [games, setGames] = useState([]);
   const [notifs, setNotifs] = useState([]);
+  const [fees, setFees] = useState([]);
 
   const reload = async () => {
-    const [b, s, p, g, n] = await Promise.all([
+    const [b, s, p, g, n, f] = await Promise.all([
       api.get("/bookings/me"),
       api.get("/sessions/me"),
       api.get("/progress/me"),
       api.get("/games"),
       api.get("/notifications/me"),
+      api.get("/fees/me"),
     ]);
-    setBookings(b.data); setSessions(s.data); setProgress(p.data); setGames(g.data); setNotifs(n.data);
+    setBookings(b.data); setSessions(s.data); setProgress(p.data);
+    setGames(g.data); setNotifs(n.data); setFees(f.data);
   };
 
   useEffect(() => { reload(); }, []);
@@ -38,19 +46,31 @@ export default function Dashboard() {
     catch (e) { toast.error(errorMsg(e)); }
   };
 
-  const upcomingBookings = bookings.filter((b) => b.status === "confirmed" && new Date(b.booking_date) >= new Date(new Date().toDateString()));
-  const upcomingSessions = sessions.filter((s) => s.status === "confirmed" && new Date(s.session_date) >= new Date(new Date().toDateString()));
+  const today0 = new Date(new Date().toDateString());
+  const upcomingBookings = bookings.filter((b) => b.status === "confirmed" && new Date(b.booking_date) >= today0);
+  const upcomingSessions = sessions.filter((s) => s.status === "confirmed" && new Date(s.session_date) >= today0);
   const unread = notifs.filter((n) => !n.read).length;
+  const pendingFees = fees.filter((f) => f.status !== "paid");
+  const pendingTotal = pendingFees.reduce((a, f) => a + Number(f.amount || 0), 0);
+
+  // Kid-aware games (kid in either team)
+  const kidNames = (user?.kids || []).map((k) => k.name);
+  const myMatches = games.filter((g) => {
+    if (kidNames.length === 0) return true;
+    return kidNames.some((k) => g.team_a?.includes(k) || g.team_b?.includes(k));
+  });
 
   return (
     <div className="mx-auto max-w-7xl px-4 md:px-8 py-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-2">— Player Console</div>
-          <h1 className="font-display text-5xl md:text-6xl font-black uppercase tracking-tight">
+          <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-2">— Parent Dashboard</div>
+          <h1 className="font-display text-5xl md:text-6xl font-bold uppercase tracking-tight">
             Hello, {user?.name?.split(" ")[0]}.
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button asChild className="rounded-sm font-display tracking-[0.2em] uppercase" data-testid="dashboard-book-lane">
@@ -62,19 +82,28 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="dashboard-stats">
+      {/* KPI strip */}
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="dashboard-stats">
         <KPI label="Upcoming lanes" value={upcomingBookings.length} icon={<Calendar className="h-4 w-4" />} />
         <KPI label="1-1 sessions" value={upcomingSessions.length} icon={<Users className="h-4 w-4" />} />
         <KPI label="Reports" value={progress.length} icon={<BarChart3 className="h-4 w-4" />} />
-        <KPI label="Notifications" value={unread} icon={<Bell className="h-4 w-4" />} highlight={unread > 0} />
+        <KPI label="Pending fees" value={`$${pendingTotal.toFixed(0)}`} icon={<DollarSign className="h-4 w-4" />} highlight={pendingTotal > 0} />
+        <KPI label="Inbox" value={unread} icon={<Bell className="h-4 w-4" />} highlight={unread > 0} />
+      </div>
+
+      {/* Charts row */}
+      <div className="mt-6 grid lg:grid-cols-3 gap-3">
+        <ProgressChart progress={progress} />
+        <FeesChart fees={fees} />
+        <ActivityChart bookings={bookings} sessions={sessions} />
       </div>
 
       <Tabs defaultValue="schedule" className="mt-10">
-        <TabsList className="bg-card border border-border rounded-sm" data-testid="dashboard-tabs">
+        <TabsList className="bg-card border border-border rounded-sm flex-wrap h-auto" data-testid="dashboard-tabs">
           <TabsTrigger value="schedule" className="font-display tracking-[0.2em] uppercase text-xs" data-testid="tab-schedule">Schedule</TabsTrigger>
           <TabsTrigger value="progress" className="font-display tracking-[0.2em] uppercase text-xs" data-testid="tab-progress">Progress</TabsTrigger>
-          <TabsTrigger value="games" className="font-display tracking-[0.2em] uppercase text-xs" data-testid="tab-games">Games</TabsTrigger>
+          <TabsTrigger value="matches" className="font-display tracking-[0.2em] uppercase text-xs" data-testid="tab-matches">Matches</TabsTrigger>
+          <TabsTrigger value="fees" className="font-display tracking-[0.2em] uppercase text-xs" data-testid="tab-fees">Fees</TabsTrigger>
           <TabsTrigger value="notif" className="font-display tracking-[0.2em] uppercase text-xs" data-testid="tab-notif">Inbox</TabsTrigger>
         </TabsList>
 
@@ -90,7 +119,7 @@ export default function Dashboard() {
                   </div>
                   {b.status === "cancelled" && <div className="text-xs text-destructive mt-1">Cancelled</div>}
                 </div>
-                {b.status === "confirmed" && (
+                {b.status === "confirmed" && new Date(b.booking_date) >= today0 && (
                   <Button size="sm" variant="ghost" onClick={() => cancelBooking(b.id)} data-testid={`cancel-booking-${b.id}`}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -109,7 +138,7 @@ export default function Dashboard() {
                   </div>
                   {s.status === "cancelled" && <div className="text-xs text-destructive mt-1">Cancelled</div>}
                 </div>
-                {s.status === "confirmed" && (
+                {s.status === "confirmed" && new Date(s.session_date) >= today0 && (
                   <Button size="sm" variant="ghost" onClick={() => cancelSession(s.id)} data-testid={`cancel-session-${s.id}`}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -130,21 +159,50 @@ export default function Dashboard() {
           ))}
         </TabsContent>
 
-        <TabsContent value="games" className="mt-6 grid md:grid-cols-2 gap-3">
-          {games.length === 0 && <Empty text="No upcoming games." />}
-          {games.map((g) => (
-            <div key={g.id} className="border border-border bg-card p-5" data-testid={`game-card-${g.id}`}>
+        <TabsContent value="matches" className="mt-6 grid md:grid-cols-2 gap-3" data-testid="matches-list">
+          {myMatches.length === 0 && <Empty text="No matches scheduled." />}
+          {myMatches.map((g) => (
+            <div key={g.id} className="border border-border bg-card p-5">
               <div className="text-[10px] tracking-[0.3em] uppercase text-primary font-bold">
                 {new Date(g.game_date).toLocaleDateString(undefined, { weekday: "long" })}
               </div>
-              <h3 className="font-display text-2xl font-black uppercase mt-1">{g.title}</h3>
+              <h3 className="font-display text-2xl font-bold uppercase mt-1">{g.title}</h3>
               <div className="mt-3 text-sm text-muted-foreground space-y-1">
                 <div className="flex items-center gap-2"><Clock className="h-3 w-3" /> {g.game_date} · {g.start_time}</div>
                 <div className="flex items-center gap-2"><MapPin className="h-3 w-3" /> {g.ground_name}</div>
               </div>
+              {kidNames.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {kidNames.filter((k) => g.team_a?.includes(k) || g.team_b?.includes(k)).map((k) => (
+                    <span key={k} className="text-[10px] tracking-[0.2em] uppercase font-bold bg-primary/15 text-primary px-2 py-1 border border-primary/30">
+                      {k} playing
+                    </span>
+                  ))}
+                </div>
+              )}
               <a href={mapLink(g)} target="_blank" rel="noreferrer" className="mt-4 inline-block text-xs font-bold tracking-[0.2em] uppercase text-primary hover:text-foreground">
                 Open Maps →
               </a>
+            </div>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="fees" className="mt-6 space-y-2" data-testid="fees-list">
+          {fees.length === 0 && <Empty text="No invoices yet." />}
+          {fees.map((f) => (
+            <div key={f.id} className="flex items-center justify-between border border-border bg-card px-4 py-3">
+              <div>
+                <div className="font-display text-base font-bold uppercase">{f.label}</div>
+                <div className="text-xs text-muted-foreground">{f.kid_name ? f.kid_name + " · " : ""}Due {f.due_date}</div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="font-display text-2xl font-bold">${Number(f.amount).toFixed(0)}</div>
+                <span className={`text-[10px] tracking-[0.2em] uppercase font-bold px-2 py-1 border ${
+                  f.status === "paid" ? "border-secondary text-secondary"
+                  : f.status === "overdue" ? "border-destructive text-destructive"
+                  : "border-primary text-primary"
+                }`}>{f.status}</span>
+              </div>
             </div>
           ))}
         </TabsContent>
@@ -171,7 +229,7 @@ function KPI({ label, value, icon, highlight }) {
   return (
     <div className={`border bg-card p-5 ${highlight ? "border-primary" : "border-border"}`}>
       <div className="flex items-center gap-2 text-muted-foreground">{icon}<span className="text-[10px] tracking-[0.3em] uppercase">{label}</span></div>
-      <div className="mt-2 font-display text-4xl font-black">{value}</div>
+      <div className="mt-2 font-display text-4xl font-bold">{value}</div>
     </div>
   );
 }
@@ -196,8 +254,129 @@ function groupBy(arr, key) {
   }, {});
 }
 
+/* ---------- Charts ---------- */
+function ProgressChart({ progress }) {
+  // Use latest kid's reports (oldest → newest)
+  const grouped = groupBy(progress, "kid_name");
+  const kids = Object.keys(grouped);
+  const data = (kids[0] ? grouped[kids[0]].slice().reverse() : []).map((p) => ({
+    label: p.period_label,
+    Batting: p.batting_score, Bowling: p.bowling_score, Fielding: p.fielding_score, Fitness: p.fitness_score,
+  }));
+  return (
+    <div className="border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary">— Player progress</div>
+          <div className="font-display text-2xl font-bold uppercase">{kids[0] || "No reports"}</div>
+        </div>
+        <TrendingUp className="h-4 w-4 text-secondary" />
+      </div>
+      <div className="h-44 mt-3">
+        {data.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+              <YAxis domain={[0, 100]} stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Line type="monotone" dataKey="Batting" stroke="hsl(var(--chart-1))" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="Bowling" stroke="hsl(var(--chart-2))" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="Fielding" stroke="hsl(var(--chart-3))" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="Fitness" stroke="hsl(var(--chart-4))" strokeWidth={2} dot />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full grid place-items-center text-xs text-muted-foreground">No data yet</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FeesChart({ fees }) {
+  const paid = fees.filter((f) => f.status === "paid").reduce((a, f) => a + Number(f.amount || 0), 0);
+  const pending = fees.filter((f) => f.status !== "paid").reduce((a, f) => a + Number(f.amount || 0), 0);
+  const data = [
+    { name: "Paid", value: paid, fill: "hsl(var(--chart-2))" },
+    { name: "Pending", value: pending, fill: "hsl(var(--chart-1))" },
+  ];
+  const empty = paid + pending === 0;
+  return (
+    <div className="border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary">— Fees</div>
+          <div className="font-display text-2xl font-bold uppercase">${(paid + pending).toFixed(0)} total</div>
+        </div>
+        <DollarSign className="h-4 w-4 text-secondary" />
+      </div>
+      <div className="h-44 mt-3">
+        {!empty ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="name" innerRadius={36} outerRadius={64} paddingAngle={2}>
+                {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full grid place-items-center text-xs text-muted-foreground">No invoices yet</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActivityChart({ bookings, sessions }) {
+  // Last 8 weeks: count per week
+  const weeks = [];
+  const today = new Date(new Date().toDateString());
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i * 7);
+    weeks.push({ key: weekKey(d), label: `W${weekNum(d)}`, lanes: 0, sessions: 0 });
+  }
+  const idx = new Map(weeks.map((w, i) => [w.key, i]));
+  bookings.forEach((b) => {
+    if (b.status === "cancelled") return;
+    const k = weekKey(new Date(b.booking_date));
+    if (idx.has(k)) weeks[idx.get(k)].lanes += 1;
+  });
+  sessions.forEach((s) => {
+    if (s.status === "cancelled") return;
+    const k = weekKey(new Date(s.session_date));
+    if (idx.has(k)) weeks[idx.get(k)].sessions += 1;
+  });
+  return (
+    <div className="border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary">— Activity (8 wk)</div>
+          <div className="font-display text-2xl font-bold uppercase">Training mix</div>
+        </div>
+        <BarChart3 className="h-4 w-4 text-secondary" />
+      </div>
+      <div className="h-44 mt-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={weeks} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+            <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+            <Bar dataKey="lanes" stackId="a" fill="hsl(var(--chart-1))" />
+            <Bar dataKey="sessions" stackId="a" fill="hsl(var(--chart-2))" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function KidProgress({ kid, items }) {
-  const data = items.slice().reverse().map((p, i) => ({
+  const data = items.slice().reverse().map((p) => ({
     label: p.period_label,
     Batting: p.batting_score, Bowling: p.bowling_score, Fielding: p.fielding_score, Fitness: p.fitness_score,
   }));
@@ -207,7 +386,7 @@ function KidProgress({ kid, items }) {
       <div className="p-5 flex items-center justify-between">
         <div>
           <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary">— Player</div>
-          <h3 className="font-display text-3xl font-black uppercase">{kid}</h3>
+          <h3 className="font-display text-3xl font-bold uppercase">{kid}</h3>
         </div>
         <div className="text-right text-sm text-muted-foreground">
           Latest: {latest.period_label}
@@ -248,4 +427,20 @@ function KidProgress({ kid, items }) {
 function mapLink(g) {
   if (g.gps_lat && g.gps_lng) return `https://www.google.com/maps/search/?api=1&query=${g.gps_lat},${g.gps_lng}`;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(g.ground_address)}`;
+}
+
+function weekKey(d) {
+  const dt = new Date(d);
+  const day = dt.getDay() || 7;
+  dt.setDate(dt.getDate() - day + 1); // monday
+  return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+}
+
+function weekNum(d) {
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = new Date(target.getFullYear(), 0, 4);
+  const diff = (target - firstThursday) / 86400000;
+  return 1 + Math.ceil(diff / 7);
 }

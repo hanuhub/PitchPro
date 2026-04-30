@@ -18,7 +18,7 @@ export default function Landing() {
         <div className="relative mx-auto max-w-7xl px-4 md:px-8 pt-20 pb-32 grid lg:grid-cols-12 gap-10 items-end">
           <div className="lg:col-span-8 animate-fade-up">
             <div className="text-xs tracking-[0.4em] uppercase font-bold text-primary mb-6">
-              ◆ Est. 2014 — Crease Cricket Academy
+              ◆ PitchPro — Est. 2014
             </div>
             <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tighter">
               Train like<br/>
@@ -68,7 +68,7 @@ export default function Landing() {
         <div className="flex items-end justify-between mb-12">
           <div>
             <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-2">— What we offer</div>
-            <h2 className="font-display text-4xl md:text-5xl font-black uppercase tracking-tight">Everything you need.<br/>Nothing you don't.</h2>
+            <h2 className="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight">Everything you need.<br/>Nothing you don't.</h2>
           </div>
         </div>
 

@@ -5,8 +5,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Barlow Condensed"', "sans-serif"],
-        sans: ['"DM Sans"', "system-ui", "sans-serif"],
+        display: ['"Oswald"', "sans-serif"],
+        sans: ['"Manrope"', "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "monospace"],
       },
       borderRadius: {

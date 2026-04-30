@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { routeFor } from "@/pages/Login";
 
 export default function Register() {
   const { register } = useAuth();
@@ -20,8 +21,8 @@ export default function Register() {
     const res = await register(form);
     setLoading(false);
     if (res.ok) {
-      toast.success(`Welcome to Crease, ${res.user.name}!`);
-      navigate("/dashboard");
+      toast.success(`Welcome to PitchPro, ${res.user.name}!`);
+      navigate(routeFor(res.user.role));
     } else {
       toast.error(res.error);
     }
@@ -30,8 +31,10 @@ export default function Register() {
   return (
     <div className="mx-auto max-w-md px-4 py-20">
       <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">Become a member</div>
-      <h1 className="font-display text-5xl font-black uppercase tracking-tight">Join the academy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Create your account in under a minute.</p>
+      <h1 className="font-display text-5xl font-bold uppercase tracking-tight">Join PitchPro</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Parent sign-up — add kids, book lanes, schedule coaches and follow your player's progress.
+      </p>
 
       <form onSubmit={submit} className="mt-10 space-y-5" data-testid="register-form">
         <div>
@@ -66,6 +69,9 @@ export default function Register() {
           <Link to="/login" className="text-primary font-bold tracking-wide" data-testid="link-to-login">
             Sign in
           </Link>
+        </p>
+        <p className="text-center text-xs text-muted-foreground">
+          Academy staff accounts are created by an admin.
         </p>
       </form>
     </div>

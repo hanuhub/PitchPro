@@ -57,10 +57,10 @@ function App() {
               <ProtectedRoute><Layout><Coaching /></Layout></ProtectedRoute>
             } />
             <Route path="/admin" element={
-              <ProtectedRoute roles={["admin"]}><Layout><Admin /></Layout></ProtectedRoute>
+              <ProtectedRoute roles={["platform_admin", "academy_admin"]}><Layout><Admin /></Layout></ProtectedRoute>
             } />
             <Route path="/staff" element={
-              <ProtectedRoute roles={["admin", "coach"]}><Layout><Staff /></Layout></ProtectedRoute>
+              <ProtectedRoute roles={["platform_admin", "academy_admin", "coach"]}><Layout><Staff /></Layout></ProtectedRoute>
             } />
             <Route path="/themes" element={<Layout><ThemePicker /></Layout>} />
             <Route path="/themes/sage" element={<ThemeSage />} />

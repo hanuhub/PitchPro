@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 4 backend testing for PitchPro multi-tenant role split (platform_admin / academy_admin) + academy scoping. Wrote /app/backend/tests/test_iteration4.py with 29 pytest cases — ALL 29 PASSED after applying ONE seed bug fix. Covered: role+accent on login for all 4 admin accounts, lanes/coaches/games scoping (Crease 5/3/2, Boundary & Stumps 0), admin/staff/announcements/fees/bookings/sessions/progress scoping, cross-academy validation (parent booking Boundary lane → 403, session with Boundary coach → 403, Boundary admin progress/fees for Crease user → 403), role-gating (parent → 403 on /admin/*, /staff/*; academy_admin → 403 on POST /api/academies), academy_admin CRUD (lane/coach/game tagged with own academy_id; cross-academy DELETE returns 404), announcement & game notify scope (Boundary announcement does NOT reach Crease parent), and parent booking regression. CRITICAL BUG FIXED in-place: seed_academies() had an early-return when academies already existed, so the academy_id backfill never re-ran for seeded lanes/coaches/games/bookings/sessions whose docs had academy_id=null (not missing). Effect: Crease academy_admin saw ZERO lanes/coaches/games. Applied a migration fix to ensure backfill runs every startup against docs where academy_id is missing OR null.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "seed_academies() (server.py:1306)", "issue": "FIXED. The early-return when academies collection was non-empty skipped the academy_id backfill. Pre-existing seeded lanes/coaches/games/bookings/sessions/fees/announcements had academy_id=null (likely from a Pydantic-model-based serialization earlier), so the original backfill filter '{academy_id: {$exists: False}}' never matched them. Result: Crease academy_admin and parent (both academy=Crease) saw EMPTY lane/coach/game lists; admin/stats all showed 0; regression booking flow failed. Fixed by (a) removing early-return, (b) changing filter to '{$or:[{academy_id:{$exists:False}},{academy_id:null}]}', (c) running the same backfill for users and all 8 domain collections on every startup. Verified end-to-end: Crease now returns 5 lanes / 3 coaches / 2 games; Boundary/Stumps still 0.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "/api/academies (list)", "issue": "lanes_count/coaches_count per academy appears inflated. Each academy currently reports lanes_count=5, coaches_count=3 even though only Crease actually has lanes/coaches. This is because the count includes legacy docs OR is computed without academy_id filter. Low impact (frontend-only display), but misleading."},
+      {"endpoint": "/api/staff/lane-usage & /api/staff/coach-usage", "issue": "target_date is required query param — 422 is raised BEFORE role check. So a parent (no role permission) gets 422 if target_date missing and 403 if present. Minor FastAPI ordering quirk. Consider making target_date optional (default = today) so role gating errors are returned consistently."},
+      {"endpoint": "POST /api/lanes (academy_admin scoping)", "issue": "When platform_admin creates a lane, the new lane inherits platform_admin's academy_id (currently Crease). Platform admin should either be forced to pass academy_id explicitly OR create the lane with a null academy_id. Otherwise platform_admin can only create Crease lanes implicitly."},
+      {"endpoint": "/api/announcements scoping - audience=all recipients count", "issue": "When Boundary academy_admin posts an announcement to audience=all, recipients count currently includes only Boundary users (correct) but there are currently 0 parents in Boundary so count=0 except for the admin themselves — worth verifying when more users are seeded in Boundary."},
+      {"endpoint": "(carryover from iter-2) GET /api/sessions (coach)", "issue": "Still filters by user['coach_id'] which is never set on coach seed user — coach always sees empty list. Untested here but will still break coach dashboard."},
+      {"endpoint": "(carryover) DELETE /api/fees/{id}", "issue": "still returns 200 when fee_id does not exist — inconsistent."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/test_reports/pytest/iteration4_results.xml"
+  ],
+  "action_items": [
+    "Verify the seed fix (server.py:1306-1325) is acceptable — it is idempotent and safe, but it runs every startup. Consider moving to an explicit one-time migration script.",
+    "Decide platform_admin behavior when creating lanes/coaches/games without academy_id — today it silently uses Crease id.",
+    "Fix /api/academies per-academy lanes_count / coaches_count aggregation to use $match on academy_id.",
+    "(carryover) Link coach seed user to coach_id so GET /api/sessions works for coach role.",
+    "(carryover) DELETE /api/fees/{id} should return 404 on missing id."
+  ],
+  "critical_code_review_comments": [
+    "server.py now ~1535 lines — way over the 700-line threshold. Urgently split into routers/auth, routers/admin, routers/staff, routers/academies, routers/bookings, routers/sessions, routers/fees, services/seed.py, services/scope.py.",
+    "scope_filter() correctly keys off role==platform_admin → unscoped, else requires academy_id. Good and consistently applied.",
+    "POST endpoints (lanes/coaches/games/fees/progress) correctly tag academy_id from target user/lane/coach, and reject cross-academy inserts with 403 — matches the review contract.",
+    "Announcement audience=all implicitly scopes to academy_id via user_query[academy_id] — correct, but the variable name 'audience=all' is misleading since it is really 'all within my academy'. Consider renaming to 'my_academy' or documenting in OpenAPI.",
+    "All role gating uses require_role() with a list — consistent. platform_admin is always included in admin-only routes, correct.",
+    "seed_academy_admins() uses each academy's declared email as the login address — that is also the academy's public contact email. Consider separating real contact email from login email to prevent accidental collision.",
+    "Still using @app.on_event (carryover iter-1) — migrate to lifespan.",
+    "Password 'AcaAdmin@1' is identical across all 3 academy admins — fine for demo, but add a 'must change on first login' flag before production."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (seed_academies — remove early return + migrate null academy_id docs)",
+    "/app/backend/tests/test_iteration4.py (new, 29 tests)"
+  ],
+  "success_rate": {"backend": "100% on iteration-4 suite (29/29 pass)", "frontend": "N/A (backend-only task)"},
+  "test_credentials": "Platform admin admin@cricketacademy.com/Admin@12345 | Crease hello@crease.club/AcaAdmin@1 | Boundary hello@boundaryline.in/AcaAdmin@1 | Stumps hello@stumps.cc/AcaAdmin@1 | Parent user@cricketacademy.com/User@12345 | Coach coach@cricketacademy.com/Coach@12345 — all verified",
+  "seed_data_creation": "No new seed data; verified existing seeds (5 lanes, 3 coaches, 2+ games) are now correctly tagged with Crease academy_id post-migration; Boundary & Stumps start empty (intentional).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iteration-4 regression suite at /app/backend/tests/test_iteration4.py — run with pytest. Session-scoped fixtures login all 6 accounts once. Tests are self-cleaning for lane/coach/game CRUD but DO leak a handful of TEST_ announcements and bookings — use academy_id-based assertions (not absolute counts) going forward. The seed_academies migration fix I applied is crucial — do NOT revert it without re-running a backfill. Existing iteration-1 flaky tests (brute-force & session-conflict) remain flaky due to login_attempts pollution and fixed session date. Prior finding: /api/academies lanes_count/coaches_count are inflated, worth verifying after E1 addresses.",
+  "rca of the issue": "ROOT CAUSE of Crease seeing 0 lanes: (1) On the initial empty-DB run, seed_lanes() inserted lanes WITHOUT an academy_id field. (2) seed_academies() then inserted 3 academies and tried to backfill docs matching '{academy_id: {$exists: False}}' — this SHOULD have matched, but in this environment's DB history, the lanes collection already had academy_id set to null (probably from a Pydantic model serialization or a prior migration attempt). (3) '$exists:False' does NOT match null values, so backfill silently did nothing. (4) On every subsequent startup, seed_academies() early-returned because academies.count() > 0, so the backfill never got another chance. Result: lanes have academy_id=null forever, and the scope_filter() query '{academy_id: <crease_id>}' returns 0. FIX applied: remove early-return AND change filter to '{$or:[{academy_id:{$exists:False}},{academy_id:null}]}'. Repro: fresh deploy with intermediate writes that set academy_id=null (e.g., Pydantic model with Optional[str]=None). Mitigation: explicit migration script + CI check that no seeded collection has academy_id=null."
+}

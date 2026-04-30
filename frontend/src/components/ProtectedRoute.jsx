@@ -11,6 +11,11 @@ export function ProtectedRoute({ children, roles }) {
     );
   }
   if (!user || user === false) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  if (roles) {
+    // Backward-compat: treat legacy "admin" as "platform_admin"
+    const role = user.role === "admin" ? "platform_admin" : user.role;
+    const accept = roles.flatMap((r) => r === "admin" ? ["admin", "platform_admin", "academy_admin"] : [r]);
+    if (!accept.includes(role)) return <Navigate to="/dashboard" replace />;
+  }
   return children;
 }

@@ -91,6 +91,7 @@ def public_user(user: dict) -> dict:
         "kids": user.get("kids", []),
         "academy_id": user.get("academy_id"),
         "academy_name": user.get("academy_name"),
+        "academy_accent_color": user.get("academy_accent_color"),
         "created_at": user.get("created_at"),
     }
 
@@ -122,6 +123,33 @@ async def require_role(request: Request, roles: List[str]) -> dict:
     if user.get("role") not in roles:
         raise HTTPException(status_code=403, detail="Forbidden")
     return user
+
+
+async def get_optional_user(request: Request) -> Optional[dict]:
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        return None
+
+
+def scope_filter(user: dict, base: Optional[dict] = None) -> dict:
+    """Build a Mongo filter scoped to user's academy unless they're platform_admin."""
+    q = dict(base or {})
+    if user.get("role") != "platform_admin":
+        q["academy_id"] = user.get("academy_id")
+    return q
+
+
+def can_cross_academy(user: dict) -> bool:
+    return user.get("role") == "platform_admin"
+
+
+async def attach_academy_color(user_doc: dict) -> dict:
+    if user_doc.get("academy_id") and not user_doc.get("academy_accent_color"):
+        a = await db.academies.find_one({"id": user_doc["academy_id"]}, {"_id": 0, "accent_color": 1})
+        if a:
+            user_doc["academy_accent_color"] = a.get("accent_color")
+    return user_doc
 
 
 # --------------------- Models ---------------------
@@ -342,6 +370,7 @@ async def login(body: LoginIn, request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await clear_attempts(identifier)
     set_auth_cookies(response, create_access_token(user["id"], email), create_refresh_token(user["id"]))
+    user = await attach_academy_color(user)
     return public_user(user)
 
 
@@ -354,6 +383,7 @@ async def logout(response: Response):
 @api_router.get("/auth/me")
 async def me(request: Request):
     user = await get_current_user(request)
+    user = await attach_academy_color(user)
     return public_user(user)
 
 
@@ -389,16 +419,23 @@ async def update_me(body: UserUpdate, request: Request):
 
 # --------------------- Lanes ---------------------
 @api_router.get("/lanes")
-async def list_lanes():
-    lanes = await db.lanes.find({}, {"_id": 0}).to_list(500)
+async def list_lanes(request: Request, academy_id: Optional[str] = None):
+    user = await get_optional_user(request)
+    q: dict = {}
+    if user and user.get("role") != "platform_admin":
+        q["academy_id"] = user.get("academy_id")
+    elif academy_id:
+        q["academy_id"] = academy_id
+    lanes = await db.lanes.find(q, {"_id": 0}).to_list(500)
     return lanes
 
 
 @api_router.post("/lanes")
 async def create_lane(body: LaneIn, request: Request):
-    await require_role(request, ["admin"])
+    user = await require_role(request, ["platform_admin", "academy_admin"])
     lane = body.model_dump()
     lane["id"] = str(uuid.uuid4())
+    lane["academy_id"] = user.get("academy_id")
     lane["created_at"] = now_utc().isoformat()
     await db.lanes.insert_one(lane)
     return doc_serialize(lane)
@@ -406,8 +443,11 @@ async def create_lane(body: LaneIn, request: Request):
 
 @api_router.delete("/lanes/{lane_id}")
 async def delete_lane(lane_id: str, request: Request):
-    await require_role(request, ["admin"])
-    res = await db.lanes.delete_one({"id": lane_id})
+    user = await require_role(request, ["platform_admin", "academy_admin"])
+    q = {"id": lane_id}
+    if not can_cross_academy(user):
+        q["academy_id"] = user.get("academy_id")
+    res = await db.lanes.delete_one(q)
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Lane not found")
     return {"ok": True}
@@ -451,6 +491,8 @@ async def create_booking(body: BookingIn, request: Request):
     lane = await db.lanes.find_one({"id": body.lane_id})
     if not lane:
         raise HTTPException(status_code=404, detail="Lane not found")
+    if not can_cross_academy(user) and lane.get("academy_id") != user.get("academy_id"):
+        raise HTTPException(status_code=403, detail="Lane belongs to a different academy")
     if body.start_hour < 6 or body.start_hour + body.duration_hours > 22:
         raise HTTPException(status_code=400, detail="Bookings allowed between 6:00 and 22:00")
     booking_dt = parse_booking_dt(body.booking_date, body.start_hour)
@@ -466,6 +508,7 @@ async def create_booking(body: BookingIn, request: Request):
     booking["lane_name"] = lane["name"]
     booking["status"] = "confirmed"
     booking["total_price"] = lane["hourly_rate"] * body.duration_hours
+    booking["academy_id"] = lane.get("academy_id") or user.get("academy_id")
     booking["created_at"] = now_utc().isoformat()
     await db.bookings.insert_one(booking)
     # Mock email confirmation: log notification
@@ -491,8 +534,8 @@ async def my_bookings(request: Request):
 
 @api_router.get("/bookings")
 async def all_bookings(request: Request):
-    await require_role(request, ["admin"])
-    bookings = await db.bookings.find({}, {"_id": 0}).sort("booking_date", -1).to_list(2000)
+    user = await require_role(request, ["platform_admin", "academy_admin"])
+    bookings = await db.bookings.find(scope_filter(user), {"_id": 0}).sort("booking_date", -1).to_list(2000)
     return bookings
 
 
@@ -502,12 +545,12 @@ async def update_booking(booking_id: str, body: BookingUpdate, request: Request)
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    if booking["user_id"] != user["id"] and user["role"] != "admin":
+    if booking["user_id"] != user["id"] and user["role"] not in ("platform_admin", "academy_admin"):
         raise HTTPException(status_code=403, detail="Not allowed")
     if booking.get("status") == "cancelled":
         raise HTTPException(status_code=400, detail="Booking already cancelled")
     booking_dt = parse_booking_dt(booking["booking_date"], booking["start_hour"])
-    if booking_dt - now_utc() < timedelta(hours=24) and user["role"] != "admin":
+    if booking_dt - now_utc() < timedelta(hours=24) and user["role"] not in ("platform_admin", "academy_admin"):
         raise HTTPException(status_code=400, detail="Cannot modify within 24 hours of booking")
     update = body.model_dump(exclude_none=True)
     new_date = update.get("booking_date", booking["booking_date"])
@@ -527,10 +570,10 @@ async def cancel_booking(booking_id: str, request: Request):
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    if booking["user_id"] != user["id"] and user["role"] != "admin":
+    if booking["user_id"] != user["id"] and user["role"] not in ("platform_admin", "academy_admin"):
         raise HTTPException(status_code=403, detail="Not allowed")
     booking_dt = parse_booking_dt(booking["booking_date"], booking["start_hour"])
-    if booking_dt - now_utc() < timedelta(hours=24) and user["role"] != "admin":
+    if booking_dt - now_utc() < timedelta(hours=24) and user["role"] not in ("platform_admin", "academy_admin"):
         raise HTTPException(status_code=400, detail="Cannot cancel within 24 hours")
     await db.bookings.update_one({"id": booking_id}, {"$set": {"status": "cancelled"}})
     return {"ok": True}
@@ -538,16 +581,23 @@ async def cancel_booking(booking_id: str, request: Request):
 
 # --------------------- Coaches ---------------------
 @api_router.get("/coaches")
-async def list_coaches():
-    coaches = await db.coaches.find({}, {"_id": 0}).to_list(500)
+async def list_coaches(request: Request, academy_id: Optional[str] = None):
+    user = await get_optional_user(request)
+    q: dict = {}
+    if user and user.get("role") != "platform_admin":
+        q["academy_id"] = user.get("academy_id")
+    elif academy_id:
+        q["academy_id"] = academy_id
+    coaches = await db.coaches.find(q, {"_id": 0}).to_list(500)
     return coaches
 
 
 @api_router.post("/coaches")
 async def create_coach(body: CoachIn, request: Request):
-    await require_role(request, ["admin"])
+    user = await require_role(request, ["platform_admin", "academy_admin"])
     coach = body.model_dump()
     coach["id"] = str(uuid.uuid4())
+    coach["academy_id"] = user.get("academy_id")
     coach["created_at"] = now_utc().isoformat()
     await db.coaches.insert_one(coach)
     return doc_serialize(coach)
@@ -555,8 +605,11 @@ async def create_coach(body: CoachIn, request: Request):
 
 @api_router.delete("/coaches/{coach_id}")
 async def delete_coach(coach_id: str, request: Request):
-    await require_role(request, ["admin"])
-    res = await db.coaches.delete_one({"id": coach_id})
+    user = await require_role(request, ["platform_admin", "academy_admin"])
+    q = {"id": coach_id}
+    if not can_cross_academy(user):
+        q["academy_id"] = user.get("academy_id")
+    res = await db.coaches.delete_one(q)
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Coach not found")
     return {"ok": True}
@@ -589,6 +642,8 @@ async def create_session(body: SessionIn, request: Request):
     coach = await db.coaches.find_one({"id": body.coach_id}, {"_id": 0})
     if not coach:
         raise HTTPException(status_code=404, detail="Coach not found")
+    if not can_cross_academy(user) and coach.get("academy_id") != user.get("academy_id"):
+        raise HTTPException(status_code=403, detail="Coach belongs to a different academy")
     sd = datetime.strptime(body.session_date, "%Y-%m-%d")
     weekday = sd.weekday()
     if weekday not in coach["available_days"]:
@@ -613,6 +668,7 @@ async def create_session(body: SessionIn, request: Request):
     sess["coach_name"] = coach["name"]
     sess["status"] = "confirmed"
     sess["total_price"] = coach["hourly_rate"] * body.duration_hours
+    sess["academy_id"] = coach.get("academy_id") or user.get("academy_id")
     sess["created_at"] = now_utc().isoformat()
     await db.sessions.insert_one(sess)
     await db.notifications.insert_one({
@@ -637,8 +693,10 @@ async def my_sessions(request: Request):
 
 @api_router.get("/sessions")
 async def all_sessions(request: Request):
-    user = await require_role(request, ["admin", "coach"])
-    q = {} if user["role"] == "admin" else {"coach_id": user.get("coach_id")}
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    q = scope_filter(user)
+    if user["role"] == "coach":
+        q["coach_id"] = user.get("coach_id")
     sessions = await db.sessions.find(q, {"_id": 0}).sort("session_date", -1).to_list(500)
     return sessions
 
@@ -649,10 +707,10 @@ async def cancel_session(session_id: str, request: Request):
     sess = await db.sessions.find_one({"id": session_id}, {"_id": 0})
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
-    if sess["user_id"] != user["id"] and user["role"] != "admin":
+    if sess["user_id"] != user["id"] and user["role"] not in ("platform_admin", "academy_admin"):
         raise HTTPException(status_code=403, detail="Not allowed")
     session_dt = parse_booking_dt(sess["session_date"], sess["start_hour"])
-    if session_dt - now_utc() < timedelta(hours=24) and user["role"] != "admin":
+    if session_dt - now_utc() < timedelta(hours=24) and user["role"] not in ("platform_admin", "academy_admin"):
         raise HTTPException(status_code=400, detail="Cannot cancel within 24 hours")
     await db.sessions.update_one({"id": session_id}, {"$set": {"status": "cancelled"}})
     return {"ok": True}
@@ -661,12 +719,15 @@ async def cancel_session(session_id: str, request: Request):
 # --------------------- Kids progress ---------------------
 @api_router.post("/progress")
 async def create_progress(body: ProgressIn, request: Request):
-    await require_role(request, ["admin", "coach"])
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
     target = await db.users.find_one({"id": body.user_id}, {"_id": 0})
     if not target:
         raise HTTPException(status_code=404, detail="Parent user not found")
+    if not can_cross_academy(user) and target.get("academy_id") != user.get("academy_id"):
+        raise HTTPException(status_code=403, detail="User belongs to a different academy")
     progress = body.model_dump()
     progress["id"] = str(uuid.uuid4())
+    progress["academy_id"] = target.get("academy_id")
     progress["created_at"] = now_utc().isoformat()
     progress["user_email"] = target["email"]
     progress["user_name"] = target["name"]
@@ -693,23 +754,30 @@ async def my_progress(request: Request):
 
 @api_router.get("/progress")
 async def all_progress(request: Request):
-    await require_role(request, ["admin", "coach"])
-    items = await db.progress.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    items = await db.progress.find(scope_filter(user), {"_id": 0}).sort("created_at", -1).to_list(2000)
     return items
 
 
 # --------------------- Weekly Games ---------------------
 @api_router.get("/games")
-async def list_games():
-    items = await db.games.find({}, {"_id": 0}).sort("game_date", 1).to_list(500)
+async def list_games(request: Request, academy_id: Optional[str] = None):
+    user = await get_optional_user(request)
+    q: dict = {}
+    if user and user.get("role") != "platform_admin":
+        q["academy_id"] = user.get("academy_id")
+    elif academy_id:
+        q["academy_id"] = academy_id
+    items = await db.games.find(q, {"_id": 0}).sort("game_date", 1).to_list(500)
     return items
 
 
 @api_router.post("/games")
 async def create_game(body: GameIn, request: Request):
-    await require_role(request, ["admin", "coach"])
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
     g = body.model_dump()
     g["id"] = str(uuid.uuid4())
+    g["academy_id"] = user.get("academy_id")
     g["created_at"] = now_utc().isoformat()
     await db.games.insert_one(g)
     return doc_serialize(g)
@@ -717,8 +785,11 @@ async def create_game(body: GameIn, request: Request):
 
 @api_router.delete("/games/{game_id}")
 async def delete_game(game_id: str, request: Request):
-    await require_role(request, ["admin"])
-    res = await db.games.delete_one({"id": game_id})
+    user = await require_role(request, ["platform_admin", "academy_admin"])
+    q = {"id": game_id}
+    if not can_cross_academy(user):
+        q["academy_id"] = user.get("academy_id")
+    res = await db.games.delete_one(q)
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Game not found")
     return {"ok": True}
@@ -726,12 +797,17 @@ async def delete_game(game_id: str, request: Request):
 
 @api_router.post("/games/{game_id}/notify")
 async def notify_game(game_id: str, request: Request):
-    """Mocks WhatsApp + email: creates notification entries for all users."""
-    await require_role(request, ["admin", "coach"])
+    """Mocks WhatsApp + email: creates notification entries for all users in this academy."""
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
     game = await db.games.find_one({"id": game_id}, {"_id": 0})
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
-    users = await db.users.find({"role": "user"}, {"_id": 0}).to_list(2000)
+    if not can_cross_academy(user) and game.get("academy_id") != user.get("academy_id"):
+        raise HTTPException(status_code=403, detail="Game belongs to a different academy")
+    user_query = {"role": "user"}
+    if game.get("academy_id"):
+        user_query["academy_id"] = game.get("academy_id")
+    users = await db.users.find(user_query, {"_id": 0}).to_list(2000)
     msg = (f"Weekly Game: {game['title']} on {game['game_date']} at {game['start_time']}. "
            f"Ground: {game['ground_name']}, {game['ground_address']}.")
     sent = 0
@@ -755,23 +831,28 @@ async def notify_game(game_id: str, request: Request):
 # --------------------- Announcements (mock WhatsApp + Email) ---------------------
 @api_router.post("/announcements")
 async def create_announcement(body: AnnouncementIn, request: Request):
-    await require_role(request, ["admin", "coach"])
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
     targets: List[dict] = []
+    base_q: dict = {}
+    if not can_cross_academy(user):
+        base_q["academy_id"] = user.get("academy_id")
     if body.audience == "single":
         if not body.target_user_id:
             raise HTTPException(status_code=400, detail="target_user_id required")
-        u = await db.users.find_one({"id": body.target_user_id}, {"_id": 0})
+        q = {"id": body.target_user_id, **base_q}
+        u = await db.users.find_one(q, {"_id": 0})
         if u:
             targets.append(u)
     elif body.audience == "coaches":
-        targets = await db.users.find({"role": "coach"}, {"_id": 0}).to_list(1000)
+        targets = await db.users.find({"role": "coach", **base_q}, {"_id": 0}).to_list(1000)
     elif body.audience == "users":
-        targets = await db.users.find({"role": "user"}, {"_id": 0}).to_list(1000)
+        targets = await db.users.find({"role": "user", **base_q}, {"_id": 0}).to_list(1000)
     else:
-        targets = await db.users.find({"role": {"$in": ["user", "coach"]}}, {"_id": 0}).to_list(2000)
+        targets = await db.users.find({"role": {"$in": ["user", "coach"]}, **base_q}, {"_id": 0}).to_list(2000)
     ann_id = str(uuid.uuid4())
     await db.announcements.insert_one({
         "id": ann_id,
+        "academy_id": user.get("academy_id"),
         "channel": body.channel,
         "audience": body.audience,
         "subject": body.subject,
@@ -796,8 +877,8 @@ async def create_announcement(body: AnnouncementIn, request: Request):
 
 @api_router.get("/announcements")
 async def list_announcements(request: Request):
-    await require_role(request, ["admin", "coach"])
-    items = await db.announcements.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    items = await db.announcements.find(scope_filter(user), {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
 
 
@@ -848,7 +929,7 @@ async def get_academy(academy_id: str):
 
 @api_router.post("/academies")
 async def create_academy(body: AcademyIn, request: Request):
-    await require_role(request, ["admin"])
+    await require_role(request, ["platform_admin"])
     if await db.academies.find_one({"slug": body.slug}):
         raise HTTPException(status_code=400, detail="Slug already exists")
     a = body.model_dump()
@@ -868,19 +949,22 @@ async def my_fees(request: Request):
 
 @api_router.get("/fees")
 async def list_fees(request: Request):
-    await require_role(request, ["admin", "coach"])
-    items = await db.fees.find({}, {"_id": 0}).sort("due_date", -1).to_list(2000)
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    items = await db.fees.find(scope_filter(user), {"_id": 0}).sort("due_date", -1).to_list(2000)
     return items
 
 
 @api_router.post("/fees")
 async def create_fee(body: FeeIn, request: Request):
-    await require_role(request, ["admin"])
+    user = await require_role(request, ["platform_admin", "academy_admin"])
     target = await db.users.find_one({"id": body.user_id}, {"_id": 0})
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
+    if not can_cross_academy(user) and target.get("academy_id") != user.get("academy_id"):
+        raise HTTPException(status_code=403, detail="User belongs to a different academy")
     fee = body.model_dump()
     fee["id"] = str(uuid.uuid4())
+    fee["academy_id"] = target.get("academy_id")
     fee["user_email"] = target["email"]
     fee["user_name"] = target["name"]
     fee["created_at"] = now_utc().isoformat()
@@ -900,7 +984,7 @@ async def create_fee(body: FeeIn, request: Request):
 
 @api_router.put("/fees/{fee_id}/mark-paid")
 async def mark_fee_paid(fee_id: str, request: Request):
-    await require_role(request, ["admin"])
+    await require_role(request, ["platform_admin", "academy_admin"])
     res = await db.fees.update_one({"id": fee_id}, {"$set": {"status": "paid", "paid_at": now_utc().isoformat()}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Fee not found")
@@ -909,7 +993,7 @@ async def mark_fee_paid(fee_id: str, request: Request):
 
 @api_router.delete("/fees/{fee_id}")
 async def delete_fee(fee_id: str, request: Request):
-    await require_role(request, ["admin"])
+    await require_role(request, ["platform_admin", "academy_admin"])
     res = await db.fees.delete_one({"id": fee_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Fee not found")
@@ -919,11 +1003,14 @@ async def delete_fee(fee_id: str, request: Request):
 # --------------------- Staff (academy) views ---------------------
 @api_router.get("/staff/lane-usage")
 async def staff_lane_usage(target_date: str, request: Request):
-    await require_role(request, ["admin", "coach"])
-    lanes = await db.lanes.find({}, {"_id": 0}).to_list(500)
-    bookings = await db.bookings.find(
-        {"booking_date": target_date, "status": {"$ne": "cancelled"}}, {"_id": 0}
-    ).to_list(2000)
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    lane_q: dict = {}
+    booking_q: dict = {"booking_date": target_date, "status": {"$ne": "cancelled"}}
+    if not can_cross_academy(user):
+        lane_q["academy_id"] = user.get("academy_id")
+        booking_q["academy_id"] = user.get("academy_id")
+    lanes = await db.lanes.find(lane_q, {"_id": 0}).to_list(500)
+    bookings = await db.bookings.find(booking_q, {"_id": 0}).to_list(2000)
     out = []
     for l in lanes:
         slots = []
@@ -940,11 +1027,14 @@ async def staff_lane_usage(target_date: str, request: Request):
 
 @api_router.get("/staff/coach-usage")
 async def staff_coach_usage(target_date: str, request: Request):
-    await require_role(request, ["admin", "coach"])
-    coaches = await db.coaches.find({}, {"_id": 0}).to_list(500)
-    sessions = await db.sessions.find(
-        {"session_date": target_date, "status": {"$ne": "cancelled"}}, {"_id": 0}
-    ).to_list(2000)
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    coach_q: dict = {}
+    session_q: dict = {"session_date": target_date, "status": {"$ne": "cancelled"}}
+    if not can_cross_academy(user):
+        coach_q["academy_id"] = user.get("academy_id")
+        session_q["academy_id"] = user.get("academy_id")
+    coaches = await db.coaches.find(coach_q, {"_id": 0}).to_list(500)
+    sessions = await db.sessions.find(session_q, {"_id": 0}).to_list(2000)
     sd = datetime.strptime(target_date, "%Y-%m-%d")
     weekday = sd.weekday()
     out = []
@@ -965,13 +1055,15 @@ async def staff_coach_usage(target_date: str, request: Request):
 # --------------------- Admin ---------------------
 @api_router.get("/admin/charts")
 async def admin_charts(request: Request):
-    await require_role(request, ["admin"])
+    user = await require_role(request, ["platform_admin", "academy_admin"])
     today = datetime.now(timezone.utc).date()
     days: List[str] = [(today - timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
-    bookings = await db.bookings.find({}, {"_id": 0}).to_list(5000)
-    sessions = await db.sessions.find({}, {"_id": 0}).to_list(5000)
-    lanes = await db.lanes.find({}, {"_id": 0}).to_list(500)
-    coaches = await db.coaches.find({}, {"_id": 0}).to_list(500)
+    sf = scope_filter(user)
+    bookings = await db.bookings.find(sf, {"_id": 0}).to_list(5000)
+    sessions = await db.sessions.find(sf, {"_id": 0}).to_list(5000)
+    lane_q = {} if can_cross_academy(user) else {"academy_id": user.get("academy_id")}
+    lanes = await db.lanes.find(lane_q, {"_id": 0}).to_list(500)
+    coaches = await db.coaches.find(lane_q, {"_id": 0}).to_list(500)
 
     # Bookings & sessions per day (last 14 days)
     booking_by_day = {d: 0 for d in days}
@@ -1015,7 +1107,8 @@ async def admin_charts(request: Request):
     coach_chart = list(coach_counts.values())
 
     # Role mix
-    user_roles = await db.users.aggregate([{"$group": {"_id": "$role", "count": {"$sum": 1}}}]).to_list(20)
+    user_q: dict = {} if can_cross_academy(user) else {"academy_id": user.get("academy_id")}
+    user_roles = await db.users.aggregate([{"$match": user_q}, {"$group": {"_id": "$role", "count": {"$sum": 1}}}]).to_list(20)
     role_chart = [{"role": r["_id"], "count": r["count"]} for r in user_roles]
 
     return {
@@ -1028,22 +1121,24 @@ async def admin_charts(request: Request):
 
 @api_router.get("/admin/users")
 async def admin_users(request: Request):
-    await require_role(request, ["admin", "coach"])
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(2000)
+    user = await require_role(request, ["platform_admin", "academy_admin", "coach"])
+    users = await db.users.find(scope_filter(user), {"_id": 0, "password_hash": 0}).to_list(2000)
     return users
 
 
 @api_router.get("/admin/stats")
 async def admin_stats(request: Request):
-    await require_role(request, ["admin"])
+    user = await require_role(request, ["platform_admin", "academy_admin"])
+    sf = scope_filter(user)
+    lane_q = {} if can_cross_academy(user) else {"academy_id": user.get("academy_id")}
     return {
-        "users": await db.users.count_documents({}),
-        "lanes": await db.lanes.count_documents({}),
-        "coaches": await db.coaches.count_documents({}),
-        "bookings_active": await db.bookings.count_documents({"status": "confirmed"}),
-        "sessions_active": await db.sessions.count_documents({"status": "confirmed"}),
-        "progress_reports": await db.progress.count_documents({}),
-        "games": await db.games.count_documents({}),
+        "users": await db.users.count_documents(sf),
+        "lanes": await db.lanes.count_documents(lane_q),
+        "coaches": await db.coaches.count_documents(lane_q),
+        "bookings_active": await db.bookings.count_documents({**sf, "status": "confirmed"}),
+        "sessions_active": await db.sessions.count_documents({**sf, "status": "confirmed"}),
+        "progress_reports": await db.progress.count_documents(sf),
+        "games": await db.games.count_documents(lane_q),
     }
 
 
@@ -1059,15 +1154,18 @@ async def seed_admin():
             "password_hash": hash_password(admin_password),
             "name": "Academy Admin",
             "phone": None,
-            "role": "admin",
+            "role": "platform_admin",
             "kids": [],
             "created_at": now_utc().isoformat(),
         })
         logger.info(f"Seeded admin {admin_email}")
     elif not verify_password(admin_password, existing["password_hash"]):
         await db.users.update_one({"email": admin_email},
-                                  {"$set": {"password_hash": hash_password(admin_password)}})
+                                  {"$set": {"password_hash": hash_password(admin_password),
+                                            "role": "platform_admin"}})
         logger.info("Updated admin password from env")
+    elif existing.get("role") != "platform_admin":
+        await db.users.update_one({"email": admin_email}, {"$set": {"role": "platform_admin"}})
 
 
 async def seed_test_user():
@@ -1206,7 +1304,21 @@ async def seed_games():
 
 
 async def seed_academies():
-    if await db.academies.count_documents({}) > 0:
+    existing = await db.academies.count_documents({}) > 0
+    if existing:
+        # still ensure legacy docs are backfilled when academy_id is missing or null
+        first = await db.academies.find_one({}, {"_id": 0}, sort=[("created_at", 1)])
+        if first:
+            first_id = first["id"]
+            first_name = first["name"]
+            flt = {"$or": [{"academy_id": {"$exists": False}}, {"academy_id": None}]}
+            await db.users.update_many(
+                {**flt, "role": {"$in": ["user", "coach", "admin", "platform_admin", "academy_admin"]}},
+                {"$set": {"academy_id": first_id, "academy_name": first_name}},
+            )
+            for coll in ["lanes", "coaches", "games", "bookings", "sessions",
+                         "progress", "fees", "announcements"]:
+                await db[coll].update_many(flt, {"$set": {"academy_id": first_id}})
         return
     items = [
         {"name": "Crease Cricket Academy", "slug": "crease",
@@ -1239,9 +1351,39 @@ async def seed_academies():
     first_id = items[0]["id"]
     first_name = items[0]["name"]
     await db.users.update_many(
-        {"role": {"$in": ["user", "coach", "admin"]}, "academy_id": {"$exists": False}},
+        {"role": {"$in": ["user", "coach", "admin", "platform_admin", "academy_admin"]},
+         "academy_id": {"$exists": False}},
         {"$set": {"academy_id": first_id, "academy_name": first_name}}
     )
+    # backfill all other domain collections to first academy
+    for coll in ["lanes", "coaches", "games", "bookings", "sessions",
+                 "progress", "fees", "announcements"]:
+        await db[coll].update_many(
+            {"academy_id": {"$exists": False}},
+            {"$set": {"academy_id": first_id}}
+        )
+
+
+async def seed_academy_admins():
+    """Create one academy_admin user per academy if missing."""
+    academies = await db.academies.find({}, {"_id": 0}).to_list(500)
+    for a in academies:
+        admin_email = (a.get("email") or f"admin@{a['slug']}.pitchpro").lower()
+        # do not overwrite if it already exists
+        if await db.users.find_one({"email": admin_email}):
+            continue
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": admin_email,
+            "password_hash": hash_password("AcaAdmin@1"),
+            "name": f"{a['name']} Admin",
+            "phone": a.get("phone"),
+            "role": "academy_admin",
+            "kids": [],
+            "academy_id": a["id"],
+            "academy_name": a["name"],
+            "created_at": now_utc().isoformat(),
+        })
 
 
 async def seed_demo_activity():
@@ -1354,6 +1496,7 @@ async def on_startup():
     await seed_coaches()
     await seed_awards()
     await seed_academies()
+    await seed_academy_admins()
     await seed_games()
     await seed_demo_activity()
 

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { Logo } from "@/components/Logo";
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -29,10 +30,13 @@ export function Navbar() {
       {isAuth && (
         <NavLink to="/dashboard" className={navLinkClass} data-testid="nav-dashboard">Dashboard</NavLink>
       )}
-      {isAuth && user.role === "admin" && (
+      {isAuth && user.role === "platform_admin" && (
         <NavLink to="/admin" className={navLinkClass} data-testid="nav-admin">Admin</NavLink>
       )}
-      {isAuth && (user.role === "admin" || user.role === "coach") && (
+      {isAuth && user.role === "academy_admin" && (
+        <NavLink to="/admin" className={navLinkClass} data-testid="nav-academy-admin">My Academy</NavLink>
+      )}
+      {isAuth && (user.role === "platform_admin" || user.role === "academy_admin" || user.role === "coach") && (
         <NavLink to="/staff" className={navLinkClass} data-testid="nav-staff">Operations</NavLink>
       )}
     </>
@@ -42,9 +46,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
         <Link to="/" className="flex items-center gap-2.5" data-testid="brand-link">
-          <div className="grid h-9 w-9 place-items-center bg-primary rounded-2xl">
-            <span className="font-display text-2xl font-bold leading-none text-primary-foreground">P</span>
-          </div>
+          <Logo variant="icon" className="h-10 w-auto" />
           <div className="leading-none">
             <div className="font-display text-2xl font-bold uppercase tracking-tight">PitchPro</div>
             <div className="text-[9px] tracking-[0.32em] text-muted-foreground uppercase mt-0.5">Academy Platform</div>
@@ -79,7 +81,8 @@ export function Navbar() {
                   {user.email}
                 </DropdownMenuLabel>
                 {user.academy_name && (
-                  <DropdownMenuLabel className="text-xs text-muted-foreground -mt-2">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground -mt-2 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: user.academy_accent_color || "currentColor" }} />
                     {user.academy_name}
                   </DropdownMenuLabel>
                 )}
@@ -87,9 +90,9 @@ export function Navbar() {
                 <DropdownMenuItem onClick={() => navigate("/dashboard")} data-testid="menu-dashboard" className="rounded-lg">
                   Dashboard
                 </DropdownMenuItem>
-                {user.role === "admin" && (
+                {(user.role === "platform_admin" || user.role === "academy_admin") && (
                   <DropdownMenuItem onClick={() => navigate("/admin")} data-testid="menu-admin" className="rounded-lg">
-                    <ShieldCheck className="mr-2 h-4 w-4" /> Admin Console
+                    <ShieldCheck className="mr-2 h-4 w-4" /> {user.role === "platform_admin" ? "Platform Console" : "Academy Console"}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

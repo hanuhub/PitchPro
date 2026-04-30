@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Users, Building2 } from "lucide-react";
+import { Users, Building2, ShieldCheck } from "lucide-react";
 
 const ROLE_HINT = {
   parent: {
@@ -18,7 +18,13 @@ const ROLE_HINT = {
     title: "Academy sign in",
     sub: "Operations dashboard — lanes, coaches, fees, players, announcements.",
     cta: "Sign in as academy staff",
-    demo: { email: "admin@cricketacademy.com", password: "Admin@12345", label: "Admin" },
+    demo: { email: "hello@boundaryline.in", password: "AcaAdmin@1", label: "Boundary Line Admin" },
+  },
+  platform: {
+    title: "Platform sign in",
+    sub: "Cross-academy administration — manage all academies on PitchPro.",
+    cta: "Sign in as platform admin",
+    demo: { email: "admin@cricketacademy.com", password: "Admin@12345", label: "Platform Admin" },
   },
 };
 
@@ -57,26 +63,36 @@ export default function Login() {
       <p className="mt-2 text-sm text-muted-foreground">{hint.sub}</p>
 
       {/* Role toggle */}
-      <div className="mt-6 grid grid-cols-2 border border-border bg-card rounded-full overflow-hidden p-1" data-testid="login-role-toggle">
+      <div className="mt-6 grid grid-cols-3 border border-border bg-card rounded-full overflow-hidden p-1" data-testid="login-role-toggle">
         <button
           type="button"
           onClick={() => setMode("parent")}
           data-testid="login-role-parent"
-          className={`px-3 py-2.5 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors rounded-full ${
+          className={`px-2 py-2.5 flex items-center justify-center gap-1.5 text-[11px] font-display tracking-[0.18em] uppercase font-bold transition-colors rounded-full ${
             mode === "parent" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Users className="h-4 w-4" /> Parent
+          <Users className="h-3.5 w-3.5" /> Parent
         </button>
         <button
           type="button"
           onClick={() => setMode("academy")}
           data-testid="login-role-academy"
-          className={`px-3 py-2.5 flex items-center justify-center gap-2 text-xs font-display tracking-[0.2em] uppercase font-bold transition-colors rounded-full ${
+          className={`px-2 py-2.5 flex items-center justify-center gap-1.5 text-[11px] font-display tracking-[0.18em] uppercase font-bold transition-colors rounded-full ${
             mode === "academy" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Building2 className="h-4 w-4" /> Academy
+          <Building2 className="h-3.5 w-3.5" /> Academy
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("platform")}
+          data-testid="login-role-platform"
+          className={`px-2 py-2.5 flex items-center justify-center gap-1.5 text-[11px] font-display tracking-[0.18em] uppercase font-bold transition-colors rounded-full ${
+            mode === "platform" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ShieldCheck className="h-3.5 w-3.5" /> Platform
         </button>
       </div>
 
@@ -121,7 +137,7 @@ export default function Login() {
 }
 
 export function routeFor(role) {
-  if (role === "admin") return "/admin";
+  if (role === "platform_admin" || role === "academy_admin" || role === "admin") return "/admin";
   if (role === "coach") return "/staff";
   return "/dashboard";
 }

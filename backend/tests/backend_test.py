@@ -292,7 +292,7 @@ class TestProgress:
     def test_admin_creates_progress_user_sees(self, admin_s, user_s):
         me = user_s.get(f"{API}/auth/me").json()
         payload = {
-            "user_id": me["id"], "kid_name": "Aarav Sharma",
+            "user_id": me["id"], "kid_name": "Veer Hanumaan",
             "period_type": "weekly", "period_label": "Week 2 - 2026",
             "batting_score": 80, "bowling_score": 70,
             "fielding_score": 75, "fitness_score": 85,

@@ -169,7 +169,7 @@ class TestFees:
         # CREATE
         payload = {
             "user_id": user_me["id"],
-            "kid_name": "Aarav Sharma",
+            "kid_name": "Veer Hanumaan",
             "label": "TEST_Iter2_Fee",
             "amount": 99.5,
             "due_date": "2026-12-31",

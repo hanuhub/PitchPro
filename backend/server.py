@@ -1177,7 +1177,7 @@ async def seed_test_user():
             "name": "Rohan Sharma",
             "phone": "+15551234567",
             "role": "user",
-            "kids": [{"name": "Aarav Sharma", "age": 11}, {"name": "Diya Sharma", "age": 9}],
+            "kids": [{"name": "Veer Hanumaan", "age": 11}, {"name": "Diya Sharma", "age": 9}],
             "created_at": now_utc().isoformat(),
         })
 
@@ -1284,7 +1284,7 @@ async def seed_games():
          "ground_name": "Academy Main Ground",
          "ground_address": "12 Stadium Lane, Sportsville",
          "gps_lat": 12.9716, "gps_lng": 77.5946,
-         "team_a": ["Aarav Sharma", "Kabir Khan", "Reyansh Patel", "Vivaan Iyer", "Atharv Joshi"],
+         "team_a": ["Veer Hanumaan", "Kabir Khan", "Reyansh Patel", "Vivaan Iyer", "Atharv Joshi"],
          "team_b": ["Ishaan Mehta", "Aryan Verma", "Vihaan Reddy", "Diya Sharma", "Anika Roy"],
          "notes": "Bring whites, water, and a positive attitude!"},
         {"title": "U-12 Sunday League — Round 4",
@@ -1292,7 +1292,7 @@ async def seed_games():
          "ground_name": "East Field",
          "ground_address": "Academy East Campus, Sportsville",
          "gps_lat": 12.9750, "gps_lng": 77.6010,
-         "team_a": ["Reyansh Patel", "Kiaan Singh", "Aarush Nair", "Vihaan Reddy", "Aarav Sharma"],
+         "team_a": ["Reyansh Patel", "Kiaan Singh", "Aarush Nair", "Vihaan Reddy", "Veer Hanumaan"],
          "team_b": ["Atharv Joshi", "Ishaan Mehta", "Vivaan Iyer", "Aryan Verma", "Kabir Khan"],
          "notes": "Coloured kits — Yellow vs Blue."},
     ]
@@ -1443,13 +1443,13 @@ async def seed_demo_activity():
     fees = [
         {"id": str(uuid.uuid4()), "user_id": user["id"],
          "user_name": user["name"], "user_email": user["email"],
-         "kid_name": "Aarav Sharma", "label": "Monthly Coaching — Feb 2026",
+         "kid_name": "Veer Hanumaan", "label": "Monthly Coaching — Feb 2026",
          "amount": 320.0, "due_date": (today - timedelta(days=2)).isoformat(),
          "status": "paid", "paid_at": now_utc().isoformat(),
          "created_at": now_utc().isoformat()},
         {"id": str(uuid.uuid4()), "user_id": user["id"],
          "user_name": user["name"], "user_email": user["email"],
-         "kid_name": "Aarav Sharma", "label": "Monthly Coaching — Mar 2026",
+         "kid_name": "Veer Hanumaan", "label": "Monthly Coaching — Mar 2026",
          "amount": 320.0, "due_date": (today + timedelta(days=10)).isoformat(),
          "status": "pending", "created_at": now_utc().isoformat()},
         {"id": str(uuid.uuid4()), "user_id": user["id"],
@@ -1466,7 +1466,7 @@ async def seed_demo_activity():
         progress_items.append({
             "id": str(uuid.uuid4()),
             "user_id": user["id"], "user_name": user["name"], "user_email": user["email"],
-            "kid_name": "Aarav Sharma", "period_type": "weekly",
+            "kid_name": "Veer Hanumaan", "period_type": "weekly",
             "period_label": label, "coach_id": coaches[0]["id"],
             "batting_score": 65 + i * 4, "bowling_score": 60 + i * 3,
             "fielding_score": 70 + i * 2, "fitness_score": 72 + i * 3,

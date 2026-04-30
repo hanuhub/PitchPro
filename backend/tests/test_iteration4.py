@@ -270,7 +270,7 @@ class TestCrossAcademyValidation:
     def test_academy_admin_fee_for_other_academy_user_rejected(self, boundary_ctx, parent_ctx):
         parent_me = parent_ctx[0].get(f"{API}/auth/me").json()
         r = boundary_ctx[0].post(f"{API}/fees",
-                                 json={"user_id": parent_me["id"], "kid_name": "Aarav Sharma",
+                                 json={"user_id": parent_me["id"], "kid_name": "Veer Hanumaan",
                                        "label": "TEST_cross_fee",
                                        "amount": 100.0,
                                        "due_date": "2026-06-01"})

@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Send, Plus, Megaphone, CheckCircle2 } from "lucide-react";
+import { Trash2, Send, Plus, Megaphone, CheckCircle2, Wallet, AlertTriangle, Users, Activity, GraduationCap, Calendar, CalendarClock, BarChart3, Trophy } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, Legend,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -146,15 +146,15 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="lanes" className="mt-10">
-        <TabsList className="bg-card border border-border rounded-sm flex-wrap h-auto" data-testid="admin-tabs">
-          <TabsTrigger value="lanes" className="font-display tracking-[0.2em] uppercase text-xs">Lanes</TabsTrigger>
-          <TabsTrigger value="coaches" className="font-display tracking-[0.2em] uppercase text-xs">Coaches</TabsTrigger>
-          <TabsTrigger value="users" className="font-display tracking-[0.2em] uppercase text-xs">Users</TabsTrigger>
-          <TabsTrigger value="bookings" className="font-display tracking-[0.2em] uppercase text-xs">Bookings</TabsTrigger>
-          <TabsTrigger value="progress" className="font-display tracking-[0.2em] uppercase text-xs">Progress</TabsTrigger>
-          <TabsTrigger value="fees" className="font-display tracking-[0.2em] uppercase text-xs">Fees</TabsTrigger>
-          <TabsTrigger value="games" className="font-display tracking-[0.2em] uppercase text-xs">Games</TabsTrigger>
-          <TabsTrigger value="ann" className="font-display tracking-[0.2em] uppercase text-xs">Announce</TabsTrigger>
+        <TabsList className="bg-card border border-border rounded-full flex-wrap h-auto p-1" data-testid="admin-tabs">
+          <TabsTrigger value="lanes" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Lanes</TabsTrigger>
+          <TabsTrigger value="coaches" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Coaches</TabsTrigger>
+          <TabsTrigger value="users" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Users</TabsTrigger>
+          <TabsTrigger value="bookings" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Bookings</TabsTrigger>
+          <TabsTrigger value="progress" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Progress</TabsTrigger>
+          <TabsTrigger value="fees" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Fees</TabsTrigger>
+          <TabsTrigger value="games" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Games</TabsTrigger>
+          <TabsTrigger value="ann" className="font-display tracking-[0.2em] uppercase text-xs rounded-full">Announce</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lanes" className="mt-6"><LanesTab lanes={lanes} reload={reload} /></TabsContent>
@@ -174,23 +174,37 @@ export default function Admin() {
 
 function ChartCard({ title, children, wide }) {
   return (
-    <div className={`border border-border bg-card p-4 ${wide ? "lg:col-span-2" : ""}`}>
-      <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary mb-2">— {title}</div>
+    <div className={`border border-border bg-card p-5 rounded-2xl ${wide ? "lg:col-span-2" : ""}`}>
+      <div className="text-[10px] tracking-[0.3em] uppercase font-bold text-primary mb-3">— {title}</div>
       <div className="h-56">{children}</div>
     </div>
   );
 }
 
-function KPI({ label, value, accent, warn }) {
+function KPI({ label, value, accent, warn, muted, icon }) {
   const cls = accent
     ? "border-primary/40 bg-primary/5"
     : warn
     ? "border-yellow-500/30 bg-yellow-500/5"
+    : muted
+    ? "border-border bg-card opacity-60"
     : "border-border bg-card";
+  const iconCls = accent
+    ? "bg-primary/15 text-primary"
+    : warn
+    ? "bg-yellow-500/15 text-yellow-500"
+    : "bg-muted text-foreground";
   return (
     <div className={`border rounded-2xl p-4 ${cls}`}>
-      <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 font-display text-3xl font-black">{value ?? 0}</div>
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground font-bold">{label}</div>
+        {icon && (
+          <div className={`grid place-items-center h-7 w-7 rounded-lg ${iconCls}`}>
+            {icon}
+          </div>
+        )}
+      </div>
+      <div className="mt-2 font-display text-3xl font-black tracking-tight">{value ?? 0}</div>
     </div>
   );
 }

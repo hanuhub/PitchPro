@@ -35,7 +35,7 @@
     --radius: 1rem;
     --hero-glow-1: hsla(354, 70%, 30%, 0.18);
     --hero-glow-2: hsla(160, 84%, 25%, 0.14);
-    --logo-filter: hue-rotate(-30deg) saturate(1.05);
+    --logo-filter: none;
   }
 
   [data-theme="midnight"] {
@@ -66,7 +66,7 @@
     --radius: 1rem;
     --hero-glow-1: hsla(199, 89%, 40%, 0.22);
     --hero-glow-2: hsla(263, 70%, 50%, 0.18);
-    --logo-filter: hue-rotate(170deg) saturate(0.95);
+    --logo-filter: none;
   }
 
   [data-theme="carbon"] {
@@ -128,7 +128,7 @@
     --radius: 1rem;
     --hero-glow-1: hsla(162, 73%, 25%, 0.20);
     --hero-glow-2: hsla(45, 92%, 35%, 0.14);
-    --logo-filter: hue-rotate(80deg) saturate(0.95);
+    --logo-filter: none;
   }
 }
 

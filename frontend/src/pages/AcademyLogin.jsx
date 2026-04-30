@@ -12,7 +12,7 @@ const ROLE_HINT = {
     title: "Academy console",
     sub: "Operations dashboard — lanes, coaches, fees, players, announcements.",
     cta: "Sign in to academy",
-    demo: { email: "hello@boundaryline.in", password: "AcaAdmin@1", label: "Boundary Line Admin" },
+    demo: { email: "hello@pyaremohan.in", password: "AcaAdmin@1", label: "Pyare Mohan Admin" },
   },
   platform: {
     title: "Platform console",

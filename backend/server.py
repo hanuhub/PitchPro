@@ -1130,6 +1130,31 @@ async def admin_stats(request: Request):
     user = await require_role(request, ["platform_admin", "academy_admin"])
     sf = scope_filter(user)
     lane_q = {} if can_cross_academy(user) else {"academy_id": user.get("academy_id")}
+    today = datetime.now(timezone.utc).date()
+    thirty_ago = (today - timedelta(days=30)).isoformat()
+
+    # Revenue (last 30d) & outstanding fees (all-time pending/overdue)
+    rev_pipeline_b = [
+        {"$match": {**sf, "status": {"$ne": "cancelled"}, "booking_date": {"$gte": thirty_ago}}},
+        {"$group": {"_id": None, "t": {"$sum": "$total_price"}}},
+    ]
+    rev_pipeline_s = [
+        {"$match": {**sf, "status": {"$ne": "cancelled"}, "session_date": {"$gte": thirty_ago}}},
+        {"$group": {"_id": None, "t": {"$sum": "$total_price"}}},
+    ]
+    outstanding_p = [
+        {"$match": {**sf, "status": {"$in": ["pending", "overdue"]}}},
+        {"$group": {"_id": None, "t": {"$sum": "$amount"}}},
+    ]
+
+    async def _sum(coll, pipeline):
+        res = await db[coll].aggregate(pipeline).to_list(1)
+        return float(res[0]["t"]) if res else 0.0
+
+    rev_b = await _sum("bookings", rev_pipeline_b)
+    rev_s = await _sum("sessions", rev_pipeline_s)
+    outstanding = await _sum("fees", outstanding_p)
+
     return {
         "users": await db.users.count_documents(sf),
         "lanes": await db.lanes.count_documents(lane_q),
@@ -1138,7 +1163,187 @@ async def admin_stats(request: Request):
         "sessions_active": await db.sessions.count_documents({**sf, "status": "confirmed"}),
         "progress_reports": await db.progress.count_documents(sf),
         "games": await db.games.count_documents(lane_q),
+        "revenue_30d": round(rev_b + rev_s, 2),
+        "outstanding_fees": round(outstanding, 2),
     }
+
+
+# --------------------- Platform-level (cross-academy) Console ---------------------
+@api_router.get("/platform/stats")
+async def platform_stats(request: Request):
+    """Cross-academy KPIs for the PitchPro super-admin console."""
+    await require_role(request, ["platform_admin"])
+    today = datetime.now(timezone.utc).date()
+    thirty_ago = (today - timedelta(days=30)).isoformat()
+
+    total_academies = await db.academies.count_documents({})
+    total_players = await db.users.count_documents({"role": "user"})
+    total_coaches = await db.coaches.count_documents({})
+    total_lanes = await db.lanes.count_documents({})
+    total_bookings_30d = await db.bookings.count_documents(
+        {"status": {"$ne": "cancelled"}, "booking_date": {"$gte": thirty_ago}}
+    )
+    total_sessions_30d = await db.sessions.count_documents(
+        {"status": {"$ne": "cancelled"}, "session_date": {"$gte": thirty_ago}}
+    )
+
+    # Revenue = confirmed bookings + confirmed sessions (last 30d) + paid fees (last 30d)
+    rev_pipeline_bookings = [
+        {"$match": {"status": {"$ne": "cancelled"}, "booking_date": {"$gte": thirty_ago}}},
+        {"$group": {"_id": None, "t": {"$sum": "$total_price"}}},
+    ]
+    rev_pipeline_sessions = [
+        {"$match": {"status": {"$ne": "cancelled"}, "session_date": {"$gte": thirty_ago}}},
+        {"$group": {"_id": None, "t": {"$sum": "$total_price"}}},
+    ]
+    fee_pipeline_paid = [
+        {"$match": {"status": "paid"}},
+        {"$group": {"_id": None, "t": {"$sum": "$amount"}}},
+    ]
+    fee_pipeline_outstanding = [
+        {"$match": {"status": {"$in": ["pending", "overdue"]}}},
+        {"$group": {"_id": None, "t": {"$sum": "$amount"}}},
+    ]
+
+    async def _sum(coll, pipeline):
+        res = await db[coll].aggregate(pipeline).to_list(1)
+        return float(res[0]["t"]) if res else 0.0
+
+    rev_bookings = await _sum("bookings", rev_pipeline_bookings)
+    rev_sessions = await _sum("sessions", rev_pipeline_sessions)
+    rev_fees_paid = await _sum("fees", fee_pipeline_paid)
+    outstanding = await _sum("fees", fee_pipeline_outstanding)
+
+    gmv_30d = rev_bookings + rev_sessions
+
+    # New players & new academies in last 30 days
+    new_players_30d = await db.users.count_documents({"role": "user", "created_at": {"$gte": thirty_ago}})
+    new_academies_30d = await db.academies.count_documents({"created_at": {"$gte": thirty_ago}})
+
+    # Active academies = any academy that had a booking or session in last 30d
+    active_ids = set()
+    async for b in db.bookings.find(
+        {"status": {"$ne": "cancelled"}, "booking_date": {"$gte": thirty_ago}},
+        {"_id": 0, "academy_id": 1},
+    ):
+        if b.get("academy_id"):
+            active_ids.add(b["academy_id"])
+    async for s in db.sessions.find(
+        {"status": {"$ne": "cancelled"}, "session_date": {"$gte": thirty_ago}},
+        {"_id": 0, "academy_id": 1},
+    ):
+        if s.get("academy_id"):
+            active_ids.add(s["academy_id"])
+
+    return {
+        "total_academies": total_academies,
+        "active_academies_30d": len(active_ids),
+        "total_players": total_players,
+        "total_coaches": total_coaches,
+        "total_lanes": total_lanes,
+        "bookings_30d": total_bookings_30d,
+        "sessions_30d": total_sessions_30d,
+        "gmv_30d": round(gmv_30d, 2),
+        "fees_collected_lifetime": round(rev_fees_paid, 2),
+        "outstanding_fees": round(outstanding, 2),
+        "new_players_30d": new_players_30d,
+        "new_academies_30d": new_academies_30d,
+    }
+
+
+@api_router.get("/platform/academies")
+async def platform_academies(request: Request):
+    """Per-academy leaderboard metrics for the platform admin."""
+    await require_role(request, ["platform_admin"])
+    today = datetime.now(timezone.utc).date()
+    thirty_ago = (today - timedelta(days=30)).isoformat()
+
+    academies = await db.academies.find({}, {"_id": 0}).to_list(500)
+    # Pre-fetch counts/revenues per academy
+    players_agg = await db.users.aggregate(
+        [{"$match": {"role": "user"}}, {"$group": {"_id": "$academy_id", "c": {"$sum": 1}}}]
+    ).to_list(500)
+    coaches_agg = await db.coaches.aggregate([{"$group": {"_id": "$academy_id", "c": {"$sum": 1}}}]).to_list(500)
+    lanes_agg = await db.lanes.aggregate([{"$group": {"_id": "$academy_id", "c": {"$sum": 1}}}]).to_list(500)
+
+    bookings_rev = await db.bookings.aggregate([
+        {"$match": {"status": {"$ne": "cancelled"}, "booking_date": {"$gte": thirty_ago}}},
+        {"$group": {"_id": "$academy_id", "c": {"$sum": 1}, "r": {"$sum": "$total_price"}}},
+    ]).to_list(500)
+    sessions_rev = await db.sessions.aggregate([
+        {"$match": {"status": {"$ne": "cancelled"}, "session_date": {"$gte": thirty_ago}}},
+        {"$group": {"_id": "$academy_id", "c": {"$sum": 1}, "r": {"$sum": "$total_price"}}},
+    ]).to_list(500)
+    outstanding = await db.fees.aggregate([
+        {"$match": {"status": {"$in": ["pending", "overdue"]}}},
+        {"$group": {"_id": "$academy_id", "t": {"$sum": "$amount"}}},
+    ]).to_list(500)
+
+    def _map(docs, k="c"):
+        return {d["_id"]: d.get(k, 0) for d in docs if d.get("_id")}
+
+    players_map = _map(players_agg)
+    coaches_map = _map(coaches_agg)
+    lanes_map = _map(lanes_agg)
+    br_c, br_r = _map(bookings_rev, "c"), _map(bookings_rev, "r")
+    sr_c, sr_r = _map(sessions_rev, "c"), _map(sessions_rev, "r")
+    outstanding_map = _map(outstanding, "t")
+
+    out = []
+    for a in academies:
+        aid = a["id"]
+        revenue_30d = float(br_r.get(aid, 0)) + float(sr_r.get(aid, 0))
+        out.append({
+            "id": aid,
+            "name": a["name"],
+            "slug": a.get("slug"),
+            "city": a.get("city"),
+            "accent_color": a.get("accent_color"),
+            "players": players_map.get(aid, 0),
+            "coaches": coaches_map.get(aid, 0),
+            "lanes": lanes_map.get(aid, 0),
+            "bookings_30d": br_c.get(aid, 0),
+            "sessions_30d": sr_c.get(aid, 0),
+            "revenue_30d": round(revenue_30d, 2),
+            "outstanding_fees": round(float(outstanding_map.get(aid, 0)), 2),
+            "active": (br_c.get(aid, 0) + sr_c.get(aid, 0)) > 0,
+        })
+    # Sort by revenue desc
+    out.sort(key=lambda x: x["revenue_30d"], reverse=True)
+    return out
+
+
+@api_router.get("/platform/timeseries")
+async def platform_timeseries(request: Request):
+    """GMV per day across the whole platform for the last 30 days."""
+    await require_role(request, ["platform_admin"])
+    today = datetime.now(timezone.utc).date()
+    days = [(today - timedelta(days=i)).isoformat() for i in range(29, -1, -1)]
+    rev = {d: 0.0 for d in days}
+    bookings = {d: 0 for d in days}
+    sessions = {d: 0 for d in days}
+
+    async for b in db.bookings.find(
+        {"status": {"$ne": "cancelled"}, "booking_date": {"$gte": days[0]}},
+        {"_id": 0, "booking_date": 1, "total_price": 1},
+    ):
+        d = b.get("booking_date")
+        if d in rev:
+            rev[d] += float(b.get("total_price", 0))
+            bookings[d] += 1
+    async for s in db.sessions.find(
+        {"status": {"$ne": "cancelled"}, "session_date": {"$gte": days[0]}},
+        {"_id": 0, "session_date": 1, "total_price": 1},
+    ):
+        d = s.get("session_date")
+        if d in rev:
+            rev[d] += float(s.get("total_price", 0))
+            sessions[d] += 1
+
+    return [
+        {"date": d[5:], "revenue": round(rev[d], 2), "bookings": bookings[d], "sessions": sessions[d]}
+        for d in days
+    ]
 
 
 # --------------------- Seed & Startup ---------------------
@@ -1320,11 +1525,11 @@ async def seed_academies():
                 await db[coll].update_many(flt, {"$set": {"academy_id": first_id}})
         return
     items = [
-        {"name": "Crease Cricket Academy", "slug": "crease",
+        {"name": "Pyare Mohan Academy", "slug": "pyaremohan",
          "tagline": "Where talent meets technique.",
-         "description": "Founded in 2014 by former first-class players. Home of the U-14 regional champions and the original PitchPro pilot academy.",
+         "description": "Founded in 2014 by former first-class players. Home of the U-14 regional champions and the flagship demo academy on PitchPro.",
          "city": "Sportsville", "address": "12 Stadium Lane, Sportsville",
-         "phone": "+91 90000 11111", "email": "hello@crease.club",
+         "phone": "+91 90000 11111", "email": "hello@pyaremohan.in",
          "photo_url": "https://images.pexels.com/photos/30671893/pexels-photo-30671893.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
          "accent_color": "#D82234"},
         {"name": "Boundary Line Academy", "slug": "boundaryline",

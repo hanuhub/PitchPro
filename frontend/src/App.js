@@ -17,7 +17,7 @@ import Games from "@/pages/Games";
 import Dashboard from "@/pages/Dashboard";
 import BookLane from "@/pages/BookLane";
 import Coaching from "@/pages/Coaching";
-import Admin from "@/pages/Admin";
+import AdminSwitch from "@/pages/AdminSwitch";
 import Staff from "@/pages/Staff";
 import ThemePicker from "@/pages/themes/Picker";
 import ThemeSage from "@/pages/themes/Sage";
@@ -59,7 +59,7 @@ function App() {
               <ProtectedRoute><Layout><Coaching /></Layout></ProtectedRoute>
             } />
             <Route path="/admin" element={
-              <ProtectedRoute roles={["platform_admin", "academy_admin"]}><Layout><Admin /></Layout></ProtectedRoute>
+              <ProtectedRoute roles={["platform_admin", "academy_admin"]}><Layout><AdminSwitch /></Layout></ProtectedRoute>
             } />
             <Route path="/staff" element={
               <ProtectedRoute roles={["platform_admin", "academy_admin", "coach"]}><Layout><Staff /></Layout></ProtectedRoute>

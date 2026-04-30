@@ -29,11 +29,20 @@ PitchPro is **a multi-tenant platform** that powers cricket academies. Academy o
 `--radius` set to **1rem**, with **rounded-2xl / rounded-3xl / rounded-full** used throughout (cards, inputs, buttons). Result: modern, soft, app-like feel.
 
 ## Implemented (POC, Apr 30 2026)
-### Frontend (latest)
-- **Split login**: separate `/login` (Player & Parent) and `/academy/login` (Academy admin + Platform admin tabs).
-- **Public navbar** is now platform-only — Home / Academies / Platform. Coaches / Games / Academy links are hidden until a user is signed in. Two distinct CTAs in the header: "Player login" and "Academy login".
-- Each login page cross-links to the other, and prefills its own demo credentials.
-- Mobile menu mirrors the same split (Player login, Academy login, Sign up CTAs).
+### Iteration: Console split (platform vs academy)
+- **Renamed** primary demo academy `Crease Cricket Academy` → `Pyare Mohan Academy` (slug `pyaremohan`, admin `hello@pyaremohan.in / AcaAdmin@1`). Full seed data (lanes, coaches, bookings, fees, progress, games) now tied to this academy so the demo academy-admin login shows real data everywhere.
+- **New Platform Console** (`/app/frontend/src/pages/PlatformConsole.jsx`) for `platform_admin` — cross-academy KPIs (Academies, Total Players, GMV 30d, Fees collected lifetime, Outstanding fees, New players/academies 30d, Idle academies), GMV time-series chart, academy health pie, revenue-by-academy bar, players-by-academy bar, full academy **leaderboard** ranked by revenue, and growth-nudge cards (idle academies, outstanding fees, expansion).
+- **Academy Console** (existing Admin.jsx) now shows only that academy's data (lanes, coaches, bookings, fees, etc.) — with two new KPIs up top: **Revenue (30d)** and **Outstanding**. Heading changed to "Operations" with "Academy Console" tag.
+- **`/admin` route** now branches by role (`AdminSwitch.jsx`): platform_admin → PlatformConsole, academy_admin → AcademyConsole.
+
+### New backend endpoints
+- `GET /api/platform/stats` (platform_admin only): total_academies, active_academies_30d, total_players, total_coaches, total_lanes, bookings_30d, sessions_30d, gmv_30d, fees_collected_lifetime, outstanding_fees, new_players_30d, new_academies_30d.
+- `GET /api/platform/academies` (platform_admin only): per-academy leaderboard with players, coaches, lanes, bookings_30d, sessions_30d, revenue_30d, outstanding_fees, active flag.
+- `GET /api/platform/timeseries` (platform_admin only): GMV / bookings / sessions per day (last 30d).
+- `GET /api/admin/stats` now also returns `revenue_30d` and `outstanding_fees` (academy-scoped for academy_admin, global for platform_admin).
+
+### Split login pages (earlier this iteration)
+- `/login` (Player) + `/academy/login` (Academy + Platform staff, toggle). Public navbar hides Coaches/Games/Academy until authed.
 
 ### Backend
 - All iteration 1 & 2 endpoints unchanged.

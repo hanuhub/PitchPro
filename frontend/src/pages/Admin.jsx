@@ -49,11 +49,16 @@ export default function Admin() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 md:px-8 py-12">
-      <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">— Admin Console</div>
-      <h1 className="font-display text-5xl md:text-6xl font-bold uppercase tracking-tight">Control room</h1>
+      <div className="text-xs tracking-[0.3em] uppercase font-bold text-primary mb-3">— Academy Console</div>
+      <h1 className="font-display text-5xl md:text-6xl font-bold uppercase tracking-tight">Operations</h1>
+      <p className="mt-3 text-muted-foreground max-w-2xl">
+        Manage lanes, coaches, players, fees and communication for your academy.
+      </p>
 
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" data-testid="admin-stats">
-        <KPI label="Users" value={stats.users} />
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3" data-testid="admin-stats">
+        <KPI label="Revenue (30d)" value={`$${Number(stats.revenue_30d || 0).toFixed(0)}`} accent />
+        <KPI label="Outstanding" value={`$${Number(stats.outstanding_fees || 0).toFixed(0)}`} warn />
+        <KPI label="Players" value={stats.users} />
         <KPI label="Lanes" value={stats.lanes} />
         <KPI label="Coaches" value={stats.coaches} />
         <KPI label="Bookings" value={stats.bookings_active} />
@@ -176,9 +181,14 @@ function ChartCard({ title, children, wide }) {
   );
 }
 
-function KPI({ label, value }) {
+function KPI({ label, value, accent, warn }) {
+  const cls = accent
+    ? "border-primary/40 bg-primary/5"
+    : warn
+    ? "border-yellow-500/30 bg-yellow-500/5"
+    : "border-border bg-card";
   return (
-    <div className="border border-border bg-card p-4">
+    <div className={`border rounded-2xl p-4 ${cls}`}>
       <div className="text-[10px] tracking-[0.3em] uppercase text-muted-foreground">{label}</div>
       <div className="mt-1 font-display text-3xl font-black">{value ?? 0}</div>
     </div>

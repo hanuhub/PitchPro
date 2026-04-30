@@ -1,0 +1,65 @@
+# PitchPro — Render Blueprint
+# Deploy: push to GitHub → Render → New → Blueprint → pick this repo.
+# After first deploy, set the env vars marked sync:false in the Render dashboard.
+
+services:
+  # ────────────────────────────────────────────────────────────
+  # Backend — FastAPI (Python web service)
+  # ────────────────────────────────────────────────────────────
+  - type: web
+    name: pitchpro-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # MongoDB Atlas connection string — set in Render dashboard after creating the cluster
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: pitchpro
+      # Long random string — generate one and paste in Render
+      - key: JWT_SECRET
+        generateValue: true
+      # Comma-separated allow-list of frontend origins. Update after the static site URL is known.
+      - key: CORS_ORIGINS
+        sync: false
+      # Demo seed credentials (override in Render dashboard for production)
+      - key: ADMIN_EMAIL
+        value: admin@cricketacademy.com
+      - key: ADMIN_PASSWORD
+        sync: false
+
+  # ────────────────────────────────────────────────────────────
+  # Frontend — React static site
+  # ────────────────────────────────────────────────────────────
+  - type: web
+    name: pitchpro-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: yarn install --frozen-lockfile && yarn build
+    staticPublishPath: ./build
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # Set this AFTER the backend service is live, e.g. https://pitchpro-backend.onrender.com
+      - key: REACT_APP_BACKEND_URL
+        sync: false
+    routes:
+      # SPA fallback so React Router handles client-side routes
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /static/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable

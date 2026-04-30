@@ -29,6 +29,12 @@ JWT_ALGORITHM = "HS256"
 app = FastAPI(title="PitchPro Cricket Academy API")
 api_router = APIRouter(prefix="/api")
 
+
+@api_router.get("/health")
+async def health():
+    """Lightweight liveness probe for Render / load balancers."""
+    return {"status": "ok"}
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("cricket-academy")
 

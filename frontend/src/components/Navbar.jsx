@@ -49,7 +49,6 @@ export function Navbar() {
           <Logo variant="icon" className="h-10 w-auto" />
           <div className="leading-none">
             <div className="font-display text-2xl font-bold uppercase tracking-tight">PitchPro</div>
-            <div className="text-[9px] tracking-[0.32em] text-muted-foreground uppercase mt-0.5">Academy Platform</div>
           </div>
         </Link>
 

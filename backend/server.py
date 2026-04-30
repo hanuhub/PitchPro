@@ -910,11 +910,10 @@ async def list_awards():
 @api_router.get("/academies")
 async def list_academies():
     academies = await db.academies.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
-    # attach simple stats
     for a in academies:
         a["players_count"] = await db.users.count_documents({"academy_id": a["id"], "role": "user"})
-        a["lanes_count"] = await db.lanes.count_documents({})  # demo: shared lanes
-        a["coaches_count"] = await db.coaches.count_documents({})
+        a["lanes_count"] = await db.lanes.count_documents({"academy_id": a["id"]})
+        a["coaches_count"] = await db.coaches.count_documents({"academy_id": a["id"]})
     return academies
 
 

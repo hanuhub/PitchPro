@@ -52,6 +52,11 @@ services:
       - key: REACT_APP_BACKEND_URL
         sync: false
     routes:
+      # Proxy /api/* to the backend service so the browser sees a single origin.
+      # Critical for iOS Safari / ITP: eliminates the third-party cookie problem.
+      - type: rewrite
+        source: /api/*
+        destination: https://pitchpro-backend.onrender.com/api/:splat
       # SPA fallback so React Router handles client-side routes
       - type: rewrite
         source: /*

@@ -58,17 +58,17 @@ Click **Save Changes** → Render redeploys the backend. Wait until the service 
 
 | Key | Value |
 |---|---|
-| `REACT_APP_BACKEND_URL` | The backend URL from above. **No trailing slash. No `/api` suffix.** |
+| `REACT_APP_BACKEND_URL` | **Leave empty** (blank). The frontend calls `/api/*` on its own origin, and `render.yaml` proxies that to the backend. This is required so **iOS Safari** works — it blocks cookies between different Render subdomains (cross-site ITP). |
 
-Click **Save, Rebuild & Redeploy**. The frontend bakes this URL into the build, so any change requires a rebuild.
+Click **Save, Rebuild & Redeploy**. The frontend bakes this value into the build, so any change requires a rebuild.
+
+> If you attach custom domains so that frontend and backend share a registrable domain (e.g. `app.pitchpro.in` + `api.pitchpro.in`), you can optionally set `REACT_APP_BACKEND_URL=https://api.pitchpro.in` and set `COOKIE_SAMESITE=none` on the backend. The default proxy setup above is simpler and works out of the box.
 
 ---
 
 ## 4. Wire CORS
 
-After the frontend goes live, copy its URL (e.g. `https://pitchpro-frontend.onrender.com`).
-
-Go back to the backend service → Environment → set:
+With the `/api/*` rewrite proxy the browser only sees the frontend origin, so CORS technically isn't required for end users. Still set it so developer tools/debug requests from arbitrary origins are rejected:
 
 ```
 CORS_ORIGINS=https://pitchpro-frontend.onrender.com

@@ -75,11 +75,19 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
+def _cookie_samesite():
+    """Allow override via env. Default 'lax' works when frontend and backend share an
+    origin (e.g. Render rewrite proxying /api/*). Set COOKIE_SAMESITE=none for truly
+    cross-origin setups — note that iOS Safari / ITP may still drop those."""
+    return os.environ.get("COOKIE_SAMESITE", "lax").lower()
+
+
 def set_auth_cookies(response: Response, access: str, refresh: str):
+    ss = _cookie_samesite()
     response.set_cookie("access_token", access, httponly=True, secure=True,
-                        samesite="none", max_age=3600, path="/")
+                        samesite=ss, max_age=3600, path="/")
     response.set_cookie("refresh_token", refresh, httponly=True, secure=True,
-                        samesite="none", max_age=604800, path="/")
+                        samesite=ss, max_age=604800, path="/")
 
 
 def clear_auth_cookies(response: Response):

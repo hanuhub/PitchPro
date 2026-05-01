@@ -48,15 +48,11 @@ services:
       # Pin Node 20 LTS — react-scripts 5 doesn't build cleanly on Node 22+.
       - key: NODE_VERSION
         value: 20.18.0
-      # Set this AFTER the backend service is live, e.g. https://pitchpro-backend.onrender.com
+      # Public URL of the backend service, e.g. https://pitchpro-backend.onrender.com
+      # No trailing slash, no `/api` suffix. Baked in at build time.
       - key: REACT_APP_BACKEND_URL
         sync: false
     routes:
-      # Proxy /api/* to the backend service so the browser sees a single origin.
-      # Critical for iOS Safari / ITP: eliminates the third-party cookie problem.
-      - type: rewrite
-        source: /api/*
-        destination: https://pitchpro-backend.onrender.com/api/:splat
       # SPA fallback so React Router handles client-side routes
       - type: rewrite
         source: /*

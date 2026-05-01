@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api, errorMsg } from "@/lib/api";
+import { api, errorMsg, saveToken } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
@@ -78,6 +78,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       const { data } = await api.post("/auth/login", { email, password });
+      if (data?.access_token) saveToken(data.access_token);
       setUser(data);
       return { ok: true, user: data };
     } catch (e) {
@@ -88,6 +89,7 @@ export function AuthProvider({ children }) {
   const register = async (payload) => {
     try {
       const { data } = await api.post("/auth/register", payload);
+      if (data?.access_token) saveToken(data.access_token);
       setUser(data);
       return { ok: true, user: data };
     } catch (e) {
@@ -99,6 +101,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post("/auth/logout");
     } catch (e) { /* ignore */ }
+    saveToken(null);
     setUser(false);
   };
 

@@ -344,8 +344,13 @@ async def register(body: RegisterIn, response: Response):
         "created_at": now_utc().isoformat(),
     }
     await db.users.insert_one(user_doc)
-    set_auth_cookies(response, create_access_token(user_id, email), create_refresh_token(user_id))
-    return public_user(user_doc)
+    access = create_access_token(user_id, email)
+    refresh = create_refresh_token(user_id)
+    set_auth_cookies(response, access, refresh)
+    user_out = public_user(user_doc)
+    # Also return the token in the body so iOS Safari / cross-site clients that can't
+    # persist cookies can store it in localStorage and send it as Authorization: Bearer.
+    return {**user_out, "access_token": access}
 
 
 async def check_brute_force(identifier: str):
@@ -383,9 +388,14 @@ async def login(body: LoginIn, request: Request, response: Response):
         await record_failed_attempt(identifier)
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await clear_attempts(identifier)
-    set_auth_cookies(response, create_access_token(user["id"], email), create_refresh_token(user["id"]))
+    access = create_access_token(user["id"], email)
+    refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, access, refresh)
     user = await attach_academy_color(user)
-    return public_user(user)
+    user_out = public_user(user)
+    # Also return the token in the body so clients that can't persist cookies (iOS
+    # Safari cross-site, in-app browsers, native apps) can use Authorization: Bearer.
+    return {**user_out, "access_token": access}
 
 
 @api_router.post("/auth/logout")
